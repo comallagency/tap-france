@@ -42,9 +42,24 @@ SANS_SAXONCHE = os.path.join(FIXTURES, "sans_saxonche")
 
 PASS_IDS = ("xsd", "profil_fnfe", "regles_fr_ctc", "alertes_fr", "coherence")
 
+# Les règles françaises sont des avertissements avant la bascule, des points
+# bloquants à partir de celle-ci. La suite épingle les deux régimes plutôt que
+# de dépendre du jour où elle tourne — sans quoi elle changerait de résultat
+# toute seule le 1er septembre 2026.
+DATE_AVANT = "2026-08-21"
+DATE_BASCULE = "2026-09-01"
+DATE_APRES = "2027-01-15"
+
 
 def run(*args, env=None):
-    """Invoque le script comme le ferait le modèle : stdout, stderr, code."""
+    """Invoque le script comme le ferait le modèle : stdout, stderr, code.
+
+    Épingle --date-ref si l'appelant ne l'a pas fait : aucun test ne doit
+    dépendre de l'horloge.
+    """
+    args = list(args)
+    if not any(a.startswith("--date-ref") for a in args):
+        args += ["--date-ref", DATE_AVANT]
     proc = subprocess.run([sys.executable, SCRIPT, *args],
                           capture_output=True, text=True, cwd=ROOT, env=env)
     return proc
@@ -200,23 +215,27 @@ class TestBasicWL(ContractCase):
         self.assertEqual(entry["errors"], 0)
         self.assertEqual(entry["status"], "pass")
 
-    def test_regles_fr_ctc_neuf_bloquants(self):
+    def test_regles_fr_ctc_neuf_constatations(self):
+        """Neuf règles françaises échouent. Leur sévérité dépend de la date,
+        leur nombre non."""
         entry = passes(self.result)["regles_fr_ctc"]
         self.assertTrue(entry["applied"])
         self.assertEqual(entry["errors"], 9)
-        self.assertEqual(entry["status"], "fail")
-        found = [c for c in by_severity(self.result, "bloquant")
-                 if c["layer"] == "regles_fr_ctc"]
+        self.assertEqual(entry["status"], "warn")  # avant la bascule
+        found = [c for c in self.result["checks"] if c["layer"] == "regles_fr_ctc"]
         self.assertEqual(len(found), 9)
 
-    def test_alertes_fr_en_alerte_jamais_en_bloquant(self):
-        """§7 — un schematron _WARNING produit des alertes, pas des bloquants."""
+    def test_alertes_fr_non_executee_car_doublon(self):
+        """§6 — le schematron _WARNING porte le même jeu de règles : l'exécuter
+        compterait deux fois les mêmes constatations."""
         entry = passes(self.result)["alertes_fr"]
-        self.assertEqual(entry["status"], "warn")
-        self.assertEqual(entry["errors"], 9)
-        severities = {c["severity"] for c in self.result["checks"]
-                      if c["layer"] == "alertes_fr"}
-        self.assertEqual(severities, {"alerte"})
+        self.assertFalse(entry["applied"])
+        raison = not_applied(self.result)["alertes_fr"]
+        self.assertIn("doublon mesuré", raison)
+        self.assertIn("recouvrement", raison)
+        self.assertIn("2026-09-01", raison)
+        self.assertEqual([c for c in self.result["checks"]
+                          if c["layer"] == "alertes_fr"], [])
 
     def test_iban_renseigne(self):
         self.assertEqual(self.result["invoice"]["payment"]["iban"],
@@ -233,19 +252,21 @@ class TestBasicWL(ContractCase):
         summary = self.result["summary"]
         self.assertTrue(summary["conforme_profil"])
         self.assertFalse(summary["conforme_reforme_fr"])
-        self.assertEqual(summary["bloquants"], 9)
+        # Avant la bascule : les neuf constatations sont des avertissements.
+        self.assertEqual(summary["bloquants"], 0)
         self.assertEqual(summary["alertes"], 9)
 
     def test_verdict_est_une_phrase_francaise_prete_a_afficher(self):
         self.assertEqual(
             self.result["summary"]["verdict"],
             "Facture valide au format Factur-X BASIC WL, mais non conforme aux "
-            "règles françaises de la réforme (9 points bloquants).")
+            "règles françaises de la réforme (9 points : avertissements "
+            "aujourd'hui, bloquants à partir du 1er septembre 2026).")
 
     def test_messages_en_francais_raw_conserve_l_original(self):
         """§7 — message reformulé, raw conservé pour traçabilité."""
         for check in self.result["checks"]:
-            if check["layer"] in ("regles_fr_ctc", "alertes_fr"):
+            if check["layer"] == "regles_fr_ctc":
                 self.assertTrue(check["message"])
                 self.assertTrue(check["raw"])
                 self.assertTrue(check["id"])
@@ -358,11 +379,13 @@ class TestSansSaxonche(ContractCase):
         self.assertFalse(self.result["validation"]["engine"]["available"])
         self.assertIsNone(self.result["validation"]["engine"]["saxon"])
 
-    def test_trois_passes_non_appliquees(self):
+    def test_passes_saxon_non_appliquees(self):
         declared = not_applied(self.result)
         self.assertEqual(set(declared), {"profil_fnfe", "regles_fr_ctc", "alertes_fr"})
-        for reason in declared.values():
-            self.assertIn("saxonche", reason)
+        for pass_id in ("profil_fnfe", "regles_fr_ctc"):
+            self.assertIn("saxonche", declared[pass_id])
+        # alertes_fr n'est pas exécutée même avec Saxon : c'est un doublon.
+        self.assertIn("doublon mesuré", declared["alertes_fr"])
 
     def test_passes_de_niveau_1_toujours_disponibles(self):
         for pass_id in ("xsd", "coherence"):
@@ -577,6 +600,91 @@ class TestFichierHorsMontage(ContractCase):
         self.assertEqual(result["status"], "unreadable")
 
 
+class TestRegimeDate(ContractCase):
+    """§7 — la sévérité des règles françaises vient de la date d'application
+    inscrite dans les en-têtes des deux schematrons jumeaux, pas de nous.
+
+    Avant le 1er septembre 2026 elles sont des avertissements, à partir de ce
+    jour-là des points bloquants. Le fait, lui, ne bouge pas."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.avant, cls.proc_avant = cls.result_for(BASICWL, "--json-only",
+                                                   "--date-ref", DATE_AVANT)
+        cls.bascule, _ = cls.result_for(BASICWL, "--json-only",
+                                        "--date-ref", DATE_BASCULE)
+        cls.apres, _ = cls.result_for(BASICWL, "--json-only",
+                                      "--date-ref", DATE_APRES)
+
+    def test_avant_la_bascule_ce_sont_des_avertissements(self):
+        self.assertEqual(self.avant["summary"]["reforme_fr"]["regime"],
+                         "avertissement")
+        self.assertEqual(self.avant["summary"]["bloquants"], 0)
+        self.assertEqual(self.avant["summary"]["alertes"], 9)
+        self.assertEqual({c["severity"] for c in self.avant["checks"]
+                          if c["layer"] == "regles_fr_ctc"}, {"alerte"})
+        self.assertEqual(passes(self.avant)["regles_fr_ctc"]["status"], "warn")
+
+    def test_le_jour_de_la_bascule_ils_deviennent_bloquants(self):
+        """La bascule est inclusive : le 1er septembre, le mode FATAL
+        s'applique."""
+        self.assertEqual(self.bascule["summary"]["reforme_fr"]["regime"],
+                         "bloquant")
+        self.assertEqual(self.bascule["summary"]["bloquants"], 9)
+        self.assertEqual(self.bascule["summary"]["alertes"], 0)
+        self.assertEqual({c["severity"] for c in self.bascule["checks"]
+                          if c["layer"] == "regles_fr_ctc"}, {"bloquant"})
+        self.assertEqual(passes(self.bascule)["regles_fr_ctc"]["status"], "fail")
+
+    def test_apres_la_bascule_aussi(self):
+        self.assertEqual(self.apres["summary"]["reforme_fr"]["regime"], "bloquant")
+        self.assertEqual(self.apres["summary"]["bloquants"], 9)
+
+    def test_le_fait_ne_bouge_pas_avec_la_date(self):
+        """§8 — la question est « cette facture satisfait-elle les règles ? »,
+        pas « suis-je sanctionnable aujourd'hui ». Le nombre de règles en échec
+        et le verdict de conformité sont les mêmes des deux côtés."""
+        for result in (self.avant, self.bascule, self.apres):
+            self.assertFalse(result["summary"]["conforme_reforme_fr"])
+            self.assertEqual(passes(result)["regles_fr_ctc"]["errors"], 9)
+            self.assertTrue(result["summary"]["conforme_profil"])
+
+    def test_le_compte_a_rebours_est_publie(self):
+        reforme = self.avant["summary"]["reforme_fr"]
+        self.assertEqual(reforme["bascule"], "2026-09-01")
+        self.assertEqual(reforme["date_reference"], DATE_AVANT)
+        self.assertEqual(reforme["jours_avant_bascule"], 11)
+        self.assertIsNone(self.bascule["summary"]["reforme_fr"]["jours_avant_bascule"])
+
+    def test_le_verdict_annonce_l_echeance(self):
+        self.assertIn("avertissements aujourd'hui", self.avant["summary"]["verdict"])
+        self.assertIn("1er septembre 2026", self.avant["summary"]["verdict"])
+        self.assertIn("9 points bloquants", self.apres["summary"]["verdict"])
+        self.assertNotIn("aujourd'hui", self.apres["summary"]["verdict"])
+
+    def test_une_seule_passe_fr_ctc_dans_les_deux_regimes(self):
+        for result in (self.avant, self.apres):
+            self.assertTrue(passes(result)["regles_fr_ctc"]["applied"])
+            self.assertFalse(passes(result)["alertes_fr"]["applied"])
+            self.assertIn("doublon mesuré", not_applied(result)["alertes_fr"])
+
+    def test_date_par_defaut_est_aujourd_hui(self):
+        """L'horloge n'est lue qu'à cet endroit."""
+        from datetime import date
+        proc = subprocess.run([sys.executable, SCRIPT, BASICWL, "--json-only"],
+                              capture_output=True, text=True, cwd=ROOT)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["summary"]["reforme_fr"]["date_reference"],
+                         date.today().isoformat())
+
+    def test_date_malformee_refusee(self):
+        proc = subprocess.run(
+            [sys.executable, SCRIPT, BASICWL, "--json-only", "--date-ref", "1er septembre"],
+            capture_output=True, text=True, cwd=ROOT)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("AAAA-MM-JJ", proc.stderr)
+
+
 class TestMessagesReforme(ContractCase):
     """§7 — le message d'une règle BR-FR-* doit parler au destinataire de la
     facture, pas à l'intégrateur qui a écrit le schematron. Le texte officiel
@@ -595,7 +703,7 @@ class TestMessagesReforme(ContractCase):
         for fixture in (BASICWL, EN16931):
             result, _ = cls.result_for(fixture, "--json-only")
             cls.checks += [c for c in result["checks"]
-                           if c["layer"] in ("regles_fr_ctc", "alertes_fr")]
+                           if c["layer"] == "regles_fr_ctc"]
 
     def test_toutes_les_regles_declenchees_sont_reformulees(self):
         """Si une nouvelle règle se déclenche, elle doit être reformulée aussi."""
@@ -623,12 +731,14 @@ class TestMessagesReforme(ContractCase):
             self.assertTrue(check["raw"].startswith("BR-FR-"), check["id"])
             self.assertNotEqual(check["raw"], check["message"], check["id"])
 
-    def test_meme_reformulation_en_bloquant_et_en_alerte(self):
-        """Les schematrons jumeaux portent la même constatation."""
-        par_couche = {}
-        for check in self.checks:
-            par_couche.setdefault(check["layer"], {})[check["id"]] = check["message"]
-        self.assertEqual(par_couche["regles_fr_ctc"], par_couche["alertes_fr"])
+    def test_meme_reformulation_quelle_que_soit_la_date(self):
+        """La date change la sévérité, jamais le texte de la constatation."""
+        avant, _ = self.result_for(BASICWL, "--json-only", "--date-ref", DATE_AVANT)
+        apres, _ = self.result_for(BASICWL, "--json-only", "--date-ref", DATE_APRES)
+        def par_id(r):
+            return {c["id"]: c["message"] for c in r["checks"]
+                    if c["layer"] == "regles_fr_ctc"}
+        self.assertEqual(par_id(avant), par_id(apres))
 
 
 class TestCoherenceDetecteVraimentUnEcart(ContractCase):

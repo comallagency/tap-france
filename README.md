@@ -8,6 +8,7 @@ Skills Hermes pour la conformité réglementaire française. Une seule skill pou
 | `CONTRAT-facturx-reception.md` | **référence normative** de l'implémentation |
 | `tests/` | suite de tests, fixtures comprises |
 | `scripts/install-skill.sh` | installe les skills dans `~/.hermes/skills/` |
+| `scripts/fetch_schemas.py` | repli d'installation, non activé — voir `schemas/NOTICE.md` |
 
 Le contrat prime sur le code : toute divergence entre les deux est un bug du code.
 
@@ -60,13 +61,29 @@ puis purger les conteneurs persistants, sans quoi le changement reste sans effet
 docker rm -f $(docker ps -aq --filter name=hermes-)
 ```
 
+## Le calendrier de la réforme
+
+Les règles françaises `BR-FR-*` sont des **avertissements jusqu'au 31 août 2026**, des **points bloquants à partir du 1er septembre 2026**. C'est le calendrier officiel, inscrit dans les en-têtes des deux schematrons du pack FNFE — qui portent, à cette date près, exactement le même jeu de règles.
+
+Le script en tire la sévérité des constatations, jamais le verdict de fond : `conforme_reforme_fr` vaut `false` dès qu'une règle échoue, avant comme après la bascule. La question posée est « cette facture satisfait-elle les règles ? », pas « suis-je sanctionnable aujourd'hui ».
+
+La date d'appréciation est un paramètre, pas l'horloge :
+
+```bash
+python3 scripts/facturx_extract.py facture.pdf --date-ref 2026-09-01
+```
+
+Par défaut c'est le jour courant. C'est le seul endroit du script où l'heure est lue, ce qui le garde reproductible à entrées données.
+
 ## Tests
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-90 tests. Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
+99 tests. Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
+
+Ils épinglent `--date-ref` : aucun ne dépend du jour où il tourne, sans quoi la suite changerait de résultat toute seule le 1er septembre 2026.
 
 Deux d'entre eux méritent d'être connus avant toute modification de la passe `coherence` :
 

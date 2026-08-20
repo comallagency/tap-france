@@ -51,6 +51,26 @@ valides au regard de ces XSD, et les cinq schémas compilent.
   Apache 2.0 autorise la redistribution dans un dépôt MIT, à condition de
   conserver cette attribution — d'où la présente page.
 
+- **Ambiguïté à lever avant publication.** Le PDF du pack énonce l'Apache 2.0,
+  cité ci-dessus. Mais l'en-tête des fichiers `.sch` **sources** porte une
+  mention différente :
+
+  > Schematron Licensed under European Union Public Licence (EUPL) version 1.4.0
+
+  L'EUPL est une licence à réciprocité, ce qui ne se relabellise pas en MIT
+  aussi simplement que l'Apache 2.0. La formulation paraît fautive — « version
+  1.4.0 » est le numéro du pack de schematrons, pas celui de l'EUPL, dont les
+  versions vont de 1.0 à 1.2 — et le PDF est la déclaration explicite et datée.
+  Par ailleurs, ce que **nous** redistribuons, ce sont les `.xslt` compilés, qui
+  ne portent aucune mention de licence.
+
+  Cette contradiction n'est pas tranchée. Elle est sans effet pour un usage
+  interne ; elle doit être confirmée auprès de FNFE-MPE
+  (`schematronReformeFE@fnfe-mpe.org`) avant publication du tap. Le repli, si la
+  redistribution n'était pas confirmée, est `scripts/fetch_schemas.py` : il
+  télécharge le pack officiel en une étape d'installation explicite, jamais à
+  l'exécution.
+
 - **Réserve du producteur** : composants fournis « TEL QUEL », sans garantie ;
   il revient à chaque utilisateur de faire ses propres tests. Les anomalies se
   signalent à `schematronReformeFE@fnfe-mpe.org`.

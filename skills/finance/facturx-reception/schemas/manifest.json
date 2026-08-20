@@ -77,5 +77,18 @@
     "profil_fnfe": "en",
     "regles_fr_ctc": "fr",
     "alertes_fr": "fr"
+  },
+  "jumelage_fr_ctc": {
+    "passes": [
+      "regles_fr_ctc",
+      "alertes_fr"
+    ],
+    "identifiants": 229,
+    "communs": 229,
+    "propres_regles_fr_ctc": 0,
+    "propres_alertes_fr": 0,
+    "bascule": "2026-09-01",
+    "methode": "comparaison des identifiants d'assertion émis par les deux XSLT vendorisés : grep '<xsl:attribute name=\"id\">' sur BR-FR-Flux2-Schematron-CII.xslt et son jumeau _WARNING.xslt — résultat identique pour les trois profils",
+    "constat": "les deux schematrons portent le même jeu de règles ; seuls l'attribut flag (fatal/warning) et la date d'application les distinguent"
   }
 }

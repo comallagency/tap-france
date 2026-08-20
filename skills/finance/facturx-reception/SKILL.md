@@ -60,6 +60,7 @@ Options :
 |---|---|
 | `--no-validate` | Extraction seule, aucune validation (`level: 0`) |
 | `--json-only` | Silence total sur stderr |
+| `--date-ref AAAA-MM-JJ` | Date d'appréciation des règles françaises (défaut : aujourd'hui) |
 
 Sortie : **un objet JSON sur stdout, rien d'autre**. Code `0` si le script a fait son travail — y compris quand la facture est non conforme. Code `1` seulement si le fichier est illisible.
 
@@ -73,15 +74,25 @@ Regarde `summary` en premier. Il contient tout ce qu'il faut pour la première p
 
 ```json
 "summary": {
-  "bloquants": 9,
+  "bloquants": 0,
   "alertes": 9,
   "conforme_profil": true,
   "conforme_reforme_fr": false,
+  "reforme_fr": {
+    "date_reference": "2026-08-21",
+    "regime": "avertissement",
+    "bascule": "2026-09-01",
+    "jours_avant_bascule": 11
+  },
   "verdict": "…phrase française prête à afficher…"
 }
 ```
 
 **`null` ne veut pas dire « non ».** `conforme_reforme_fr: null` signifie que la vérification n'a pas été faite, pas qu'elle a échoué. Ne transforme jamais un `null` en « non conforme » : tu ferais paniquer quelqu'un à tort. Dis « je n'ai pas pu le vérifier » et regarde `validation.not_applied` pour savoir pourquoi.
+
+**Les règles françaises changent de statut le 1er septembre 2026.** Jusqu'à cette date elles sont des avertissements, à partir de cette date des points bloquants — c'est le calendrier officiel de la réforme, et le même jeu de règles échoue dans les deux cas. `summary.reforme_fr` te donne le régime en vigueur, la date de bascule et les jours restants.
+
+**Tant que la bascule n'est pas passée, le compte à rebours doit apparaître dans ta réponse.** C'est l'information la plus utile pour celui qui te lit : il a encore le temps de faire corriger sa facture. Dis « 9 points — avertissements aujourd'hui, bloquants à partir du 1er septembre 2026 », jamais « 9 points bloquants » tant qu'on est avant l'échéance.
 
 Le reste :
 
@@ -100,7 +111,7 @@ Reprends le champ `message` de chaque check tel quel — il est déjà rédigé 
 
 Les montants se citent tels qu'ils apparaissent dans le JSON. Tu ne les recalcules pas, tu n'en additionnes pas, tu n'en convertis pas.
 
-**Une puce par constatation.** Jamais deux constatations dans la même puce. Jamais de constatation omise. Le nombre de puces est égal au nombre de points bloquants annoncé — si tu annonces 9, tu écris 9 puces. Interdiction d'écrire « dont », « notamment », « entre autres » ou toute formule annonçant une liste partielle.
+**Une puce par constatation.** Jamais deux constatations dans la même puce. Jamais de constatation omise. Le nombre de puces est égal au nombre de points annoncé — si tu annonces 9, tu écris 9 puces. Interdiction d'écrire « dont », « notamment », « entre autres » ou toute formule annonçant une liste partielle.
 
 Compte tes puces avant d'envoyer. Deux constatations regroupées « parce qu'elles se ressemblent » en font disparaître une : sur une facture, deux identifiants légaux faux ne sont pas un problème, ce sont deux corrections à demander.
 
@@ -120,11 +131,15 @@ Les données — montants, taux, dates, numéro, parties, IBAN, et les `message`
 
 Autrement dit : le JSON est ta **source**, jamais ton **vocabulaire**. Tu en recopies les valeurs au caractère près, et tu n'en montres jamais la forme.
 
+**Tu ne racontes pas comment tu as obtenu le résultat.** Pas de mention du script, de son code de sortie, des passes qui se sont exécutées, du JSON ni de son existence. Ne propose pas non plus « d'autres champs disponibles si besoin » : celui qui te lit a demandé où en est sa facture, pas un compte rendu d'exécution. Tu réponds sur la facture, point.
+
+La seule exception est celle de la règle absolue : si tu **n'as pas pu** exécuter le script, tu le dis franchement et tu expliques ce qui bloque. Un échec se raconte, une réussite ne se raconte pas.
+
 Exemple de bonne réponse. Les puces sont des copies **exactes** du champ `message` des `checks` — mot pour mot, ponctuation comprise. Ne les résume pas, ne les raccourcis pas, ne les reformule pas : c'est ce que fait cet exemple, et c'est ce que tu fais.
 
 > Facture n° FA-2017-0010 de Au bon moulin, à Ma jolie boutique. 671,15 € TTC (624,90 € HT + 46,25 € de TVA), émise le 13/11/2017, échéance le 13/12/2017. Un acompte de 201,00 € a déjà été versé, il reste 470,15 € à payer.
 >
-> Le fichier est un Factur-X valide au profil BASIC WL. **En revanche, il ne respecte pas encore les règles françaises de la réforme.** 9 points bloquants :
+> Le fichier est un Factur-X valide au profil BASIC WL. **En revanche, il ne respecte pas encore les règles françaises de la réforme.** 9 points — des avertissements aujourd'hui, qui deviendront bloquants le 1er septembre 2026. Il reste 11 jours pour les faire corriger :
 >
 > - La facture ne porte pas la mention obligatoire sur l'indemnité forfaitaire de 40 € pour frais de recouvrement, due entre professionnels en cas de retard de paiement. Elle doit figurer parmi les notes de la facture : à faire ajouter par votre fournisseur.
 >

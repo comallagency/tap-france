@@ -23,7 +23,10 @@ Conséquence : la skill reste fiable même sur un modèle local faible, puisqu'a
 
 ```
 python3 scripts/facturx_extract.py <chemin.pdf> [--no-validate] [--json-only]
+                                    [--date-ref AAAA-MM-JJ]
 ```
+
+`--date-ref` fixe la date à laquelle les règles françaises sont appréciées (défaut : aujourd'hui). C'est le **seul** endroit du script où l'horloge est lue. Voir §7.
 
 - **stdout** : un seul objet JSON, toujours. Rien d'autre.
 - **stderr** : diagnostics techniques uniquement (jamais lu par le modèle).
@@ -154,31 +157,55 @@ Identifiant inconnu → `label: null`, `status: "ok"`, et un `check` de sévéri
 
 ---
 
-## 6. Validation — les cinq passes
+## 6. Validation — les cinq passes déclarées
 
 ```json
 "validation": {
   "level": 2,
   "engine": { "saxon": "SaxonC-HE 13.0", "available": true },
-  "schemas": { "facturx": "1.09.2", "fnfe_pack": "FR_CTC_V1.4.0.03", "pack_date": "2026-08-04" },
+  "reforme_fr": {
+    "date_reference": "2026-08-21", "regime": "avertissement",
+    "bascule": "2026-09-01", "jours_avant_bascule": 11
+  },
+  "schemas": { "facturx": "1.09", "fnfe_pack": "FR_CTC_V1.4.0.03", "pack_date": "2026-08-04" },
   "passes": [
     { "id": "xsd",            "applied": true,  "status": "pass", "errors": 0 },
     { "id": "profil_fnfe",    "applied": true,  "status": "pass", "errors": 0 },
-    { "id": "regles_fr_ctc",  "applied": true,  "status": "fail", "errors": 9 },
-    { "id": "alertes_fr",     "applied": true,  "status": "warn", "errors": 9 },
+    { "id": "regles_fr_ctc",  "applied": true,  "status": "warn", "errors": 9 },
+    { "id": "alertes_fr",     "applied": false, "status": null,   "errors": null },
     { "id": "coherence",      "applied": true,  "status": "pass", "errors": 0 }
   ],
-  "not_applied": []
+  "not_applied": [ { "pass": "alertes_fr", "reason": "doublon mesuré — voir plus bas" } ]
 }
 ```
+
+Le `status` de `regles_fr_ctc` suit le régime en vigueur : `warn` tant que les règles françaises ne sont que des avertissements, `fail` à partir de la bascule. `errors` ne bouge pas.
 
 | Passe | Ce qu'elle vérifie | Profils concernés | Niveau |
 |---|---|---|---|
 | `xsd` | Structure du XML | tous | 1 |
 | `profil_fnfe` | Validateur officiel FNFE du profil détecté | BASICWL, EN16931, EXTENDED | 2 |
 | `regles_fr_ctc` | Règles métier françaises `BR-FR-*` (réforme) | BASICWL, EN16931, EXTENDED | 2 |
-| `alertes_fr` | Jumeaux `_WARNING` des règles françaises | idem | 2 |
+| `alertes_fr` | **Jamais exécutée** — doublon mesuré de `regles_fr_ctc` | — | — |
 | `coherence` | Arithmétique interne en `Decimal` sur ce qui est présent | tous | 1 |
+
+### Les schematrons jumeaux ne sont pas deux jeux de règles
+
+`BR-FR-Flux2-Schematron-CII.sch` et son jumeau `_WARNING` portent **exactement les mêmes règles**, mêmes identifiants et mêmes expressions `test`. Seuls les distinguent l'attribut `flag` et une ligne d'en-tête, qui donne un calendrier :
+
+| Fichier | En-tête |
+|---|---|
+| `BR-FR-Flux2-Schematron-CII.sch` | Mode « FATAL » — APPLICABLE EN RECEPTION LE 1ER SEPTEMBRE 2026 |
+| `..._WARNING.sch` | Mode « WARNING » — APPLICABLE EN RECEPTION DES LA PUBLICATION ET JUSQU'AU SEPTEMBRE 2026 AU PLUS TARD |
+
+Les exécuter tous les deux comptait **deux fois les mêmes constatations** : neuf points bloquants et neuf alertes, pour neuf problèmes. Un seul est donc exécuté, `regles_fr_ctc`, et `alertes_fr` part dans `not_applied` avec le recouvrement mesuré :
+
+```json
+{ "pass": "alertes_fr",
+  "reason": "doublon mesuré : même jeu de règles que regles_fr_ctc (229 identifiants d'assertion, recouvrement 229/229, aucun propre à l'une ou l'autre), autre date d'application — mode WARNING jusqu'au 2026-09-01, mode FATAL ensuite" }
+```
+
+Le recouvrement est consigné dans `schemas/manifest.json`, avec la méthode qui permet de le recalculer depuis les fichiers vendorisés.
 
 **Chaque passe non exécutée est déclarée** dans `not_applied` avec sa raison :
 
@@ -221,13 +248,22 @@ L'absence de `saxonche` n'est jamais une erreur : `level: 1`, passes déclarées
 
 | Source | Sévérité |
 |---|---|
-| `failed-assert` d'un schematron d'erreurs | `bloquant` |
-| `failed-assert` / `successful-report` d'un schematron `_WARNING` | `alerte` |
+| `failed-assert` du validateur officiel de profil | `bloquant` |
+| `failed-assert` d'une règle française `BR-FR-*`, **avant** le 2026-09-01 | `alerte` |
+| `failed-assert` d'une règle française `BR-FR-*`, **à partir** du 2026-09-01 | `bloquant` |
 | Échec XSD | `bloquant` |
 | Écart arithmétique `coherence` | `bloquant` |
 | Information opérationnelle (détection en repli, saxonche absent, profil inconnu) | `info` |
 
-`message` est en **français**, reformulé pour un non-technicien. `raw` conserve le texte officiel d'origine, en anglais, pour traçabilité.
+`message` est en **français**, reformulé pour un non-technicien. `raw` conserve le texte officiel d'origine — en anglais pour le validateur de profil, en français pour les règles `BR-FR-*` — pour traçabilité.
+
+### La sévérité des règles françaises est datée
+
+Elle reste lue dans la source, pas décidée par nous : ce sont les en-têtes des deux schematrons qui fixent la date de bascule. Le script porte cette date dans une constante nommée, `BASCULE_REFORME_FR = "2026-09-01"`, documentée par la citation des deux en-têtes.
+
+La date d'appréciation est un **paramètre**, `--date-ref AAAA-MM-JJ`, dont le défaut est le jour courant. C'est le seul endroit du script où l'horloge est lue : à entrées données, la sortie reste reproductible, et les tests épinglent les deux régimes.
+
+> **Ce qui est daté, c'est la sévérité — pas le fait.** Une facture qui échoue aux règles françaises y échoue aujourd'hui comme en octobre. Voir §8.
 
 ---
 
@@ -235,17 +271,29 @@ L'absence de `saxonche` n'est jamais une erreur : `level: 1`, passes déclarées
 
 ```json
 "summary": {
-  "bloquants": 9,
+  "bloquants": 0,
   "alertes": 9,
   "conforme_profil": true,
   "conforme_reforme_fr": false,
-  "verdict": "Facture valide au format Factur-X BASIC WL, mais non conforme aux règles françaises de la réforme (9 points bloquants)."
+  "reforme_fr": {
+    "date_reference": "2026-08-21",
+    "regime": "avertissement",
+    "bascule": "2026-09-01",
+    "jours_avant_bascule": 11
+  },
+  "verdict": "Facture valide au format Factur-X BASIC WL, mais non conforme aux règles françaises de la réforme (9 points : avertissements aujourd'hui, bloquants à partir du 1er septembre 2026)."
 }
 ```
 
 - `conforme_profil` et `conforme_reforme_fr` valent `true`, `false`, **ou `null` si la passe correspondante n'a pas été exécutée.**
 - **`null` ne devient jamais `false`.** « Non vérifié » et « non conforme » sont deux choses différentes, et les confondre ferait paniquer un utilisateur à tort — ou le rassurerait à tort.
 - `verdict` est une phrase française prête à afficher, générée mécaniquement à partir des compteurs.
+
+**`conforme_reforme_fr` ne dépend pas de la date.** La question posée est « cette facture satisfait-elle les règles françaises ? », pas « suis-je sanctionnable aujourd'hui ». Neuf règles en échec valent `false` avant comme après la bascule ; seule leur sévérité change.
+
+`reforme_fr` porte le régime en vigueur à la date d'appréciation, la date de bascule et le nombre de jours restants — `null` une fois la bascule passée. C'est ce qui permet à la réponse de dire : « 9 points — avertissements aujourd'hui, bloquants à partir du 1er septembre 2026. »
+
+Le compte cité par `verdict` est celui des **règles françaises en échec**, pas celui des points bloquants : avant la bascule, ces mêmes constatations sont des avertissements, et « 0 point bloquant » serait absurde.
 
 ---
 

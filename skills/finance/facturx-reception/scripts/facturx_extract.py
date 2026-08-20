@@ -32,6 +32,20 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 SCHEMA_VERSION = "1.0"
 
+# Calendrier officiel de la réforme française, lu dans les en-têtes des deux
+# schematrons jumeaux du pack FNFE FR CTC :
+#
+#   BR-FR-Flux2-Schematron-CII.sch
+#     Mode "FATAL"   — APPLICABLE EN RECEPTION LE 1ER SEPTEMBRE 2026
+#   BR-FR-Flux2-Schematron-CII_WARNING.sch
+#     Mode "WARNING" — APPLICABLE EN RECEPTION DES LA PUBLICATION
+#                      ET JUSQU'AU SEPTEMBRE 2026 AU PLUS TARD
+#
+# Les deux fichiers portent exactement le même jeu de règles ; seule la date
+# d'application les distingue. La sévérité des constatations BR-FR en découle,
+# et reste donc lue dans la source — pas décidée par nous.
+BASCULE_REFORME_FR = "2026-09-01"
+
 SCHEMAS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schemas")
 
 # --------------------------------------------------------------------------
@@ -1109,6 +1123,27 @@ SETTLEMENT_PATH = ("/rsm:CrossIndustryInvoice/rsm:SupplyChainTradeTransaction"
 TOTALS_PATH = SETTLEMENT_PATH + "/ram:SpecifiedTradeSettlementHeaderMonetarySummation"
 
 
+def regime_reforme(date_ref: str) -> str:
+    """« avertissement » avant la bascule, « bloquant » à partir de ce jour-là.
+
+    Comparaison de chaînes ISO : sûre, et sans dépendance à un fuseau horaire.
+    """
+    return "bloquant" if date_ref >= BASCULE_REFORME_FR else "avertissement"
+
+
+def severite_reforme(date_ref: str) -> str:
+    return "bloquant" if regime_reforme(date_ref) == "bloquant" else "alerte"
+
+
+def jours_avant_bascule(date_ref: str) -> int | None:
+    """Jours restants avant la bascule, ou None une fois celle-ci passée."""
+    from datetime import date
+    reference = date.fromisoformat(date_ref)
+    bascule = date.fromisoformat(BASCULE_REFORME_FR)
+    reste = (bascule - reference).days
+    return reste if reste > 0 else None
+
+
 def load_manifest() -> dict:
     with open(os.path.join(SCHEMAS_DIR, "manifest.json"), encoding="utf-8") as handle:
         return json.load(handle)
@@ -1332,7 +1367,7 @@ def run_coherence(invoice: dict) -> tuple[int, list[dict]]:
 
 
 def validate(xml_bytes: bytes, xml_text: str, root, invoice: dict, profile_label,
-             manifest: dict, enabled: bool) -> tuple[dict, list[dict]]:
+             manifest: dict, enabled: bool, date_ref: str) -> tuple[dict, list[dict]]:
     """Exécute les cinq passes. Toute passe non exécutée est déclarée."""
     passes: list[dict] = []
     not_applied: list[dict] = []
@@ -1350,6 +1385,12 @@ def validate(xml_bytes: bytes, xml_text: str, root, invoice: dict, profile_label
             "level": 0,
             # Saxon n'a pas été sondé : « non vérifié » n'est pas « indisponible ».
             "engine": {"saxon": None, "available": None},
+            "reforme_fr": {
+                "date_reference": date_ref,
+                "regime": regime_reforme(date_ref),
+                "bascule": BASCULE_REFORME_FR,
+                "jours_avant_bascule": jours_avant_bascule(date_ref),
+            },
             "schemas": {"facturx": None,
                         "fnfe_pack": manifest["fnfe_pack"],
                         "pack_date": manifest["pack_date"]},
@@ -1383,13 +1424,15 @@ def validate(xml_bytes: bytes, xml_text: str, root, invoice: dict, profile_label
             skip("xsd", "schéma XSD illisible ou inexploitable (%s)" % exc)
 
     # Passes 2 à 4 — validateurs officiels FNFE.
+    # Un seul des deux schematrons jumeaux est exécuté : ils portent le même
+    # jeu de règles, et c'est la date qui donne la sévérité. Exécuter les deux
+    # comptait deux fois les mêmes constatations.
     schematron_passes = [
         ("profil_fnfe", (profile_conf or {}).get("profil_xslt"), "bloquant",
          manifest["assertion_language"]["profil_fnfe"]),
-        ("regles_fr_ctc", manifest["fr_ctc_xslt"]["regles_fr_ctc"], "bloquant",
+        ("regles_fr_ctc", manifest["fr_ctc_xslt"]["regles_fr_ctc"],
+         severite_reforme(date_ref),
          manifest["assertion_language"]["regles_fr_ctc"]),
-        ("alertes_fr", manifest["fr_ctc_xslt"]["alertes_fr"], "alerte",
-         manifest["assertion_language"]["alertes_fr"]),
     ]
 
     xdm_node = None
@@ -1424,13 +1467,26 @@ def validate(xml_bytes: bytes, xml_text: str, root, invoice: dict, profile_label
             warn("passe %s impossible : %s" % (pass_id, exc))
             skip(pass_id, "le validateur officiel n'a pas pu être exécuté (%s)" % exc)
             continue
-        if pass_id == "alertes_fr":
-            status = "warn" if errors else "pass"
+        if errors == 0:
+            status = "pass"
+        elif pass_id == "regles_fr_ctc" and regime_reforme(date_ref) != "bloquant":
+            # Les règles échouent, mais elles ne sont pas encore opposables.
+            status = "warn"
         else:
-            status = "pass" if errors == 0 else "fail"
+            status = "fail"
         passes.append({"id": pass_id, "applied": True, "status": status,
                        "errors": errors})
         checks.extend(found)
+
+    # Passe 4 — alertes_fr : jamais exécutée, et on dit pourquoi.
+    jumelage = manifest["jumelage_fr_ctc"]
+    skip("alertes_fr",
+         "doublon mesuré : même jeu de règles que regles_fr_ctc "
+         "(%d identifiants d'assertion, recouvrement %d/%d, aucun propre à "
+         "l'une ou l'autre), autre date d'application — mode WARNING jusqu'au "
+         "%s, mode FATAL ensuite"
+         % (jumelage["identifiants"], jumelage["communs"],
+            jumelage["identifiants"], BASCULE_REFORME_FR))
 
     # Passe 5 — cohérence arithmétique.
     errors, found = run_coherence(invoice)
@@ -1459,6 +1515,12 @@ def validate(xml_bytes: bytes, xml_text: str, root, invoice: dict, profile_label
     return {
         "level": level,
         "engine": {"saxon": saxon_version, "available": saxon_processor is not None},
+        "reforme_fr": {
+            "date_reference": date_ref,
+            "regime": regime_reforme(date_ref),
+            "bascule": BASCULE_REFORME_FR,
+            "jours_avant_bascule": jours_avant_bascule(date_ref),
+        },
         "schemas": {
             "facturx": profile_conf["facturx_version"] if profile_conf else None,
             "fnfe_pack": manifest["fnfe_pack"],
@@ -1488,6 +1550,20 @@ def conformity(validation: dict, pass_id: str):
     if entry is None or not entry["applied"]:
         return None
     return entry["errors"] == 0
+
+
+MOIS_FR = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+           "août", "septembre", "octobre", "novembre", "décembre")
+
+
+def date_francaise(iso: str | None) -> str:
+    """« 2026-09-01 » → « 1er septembre 2026 ». Une date lue par un artisan."""
+    if not iso:
+        return "la date de bascule"
+    from datetime import date
+    d = date.fromisoformat(iso)
+    jour = "1er" if d.day == 1 else str(d.day)
+    return "%s %s %d" % (jour, MOIS_FR[d.month - 1], d.year)
 
 
 def profile_phrase(label) -> str:
@@ -1538,10 +1614,22 @@ def build_verdict(status: str, profile_label, validation: dict,
         tail = ("%s conforme aux règles françaises de la réforme."
                 % ("et" if positive_head else ", mais"))
     elif conforme_reforme is False:
-        plural = "s" if bloquants > 1 else ""
-        tail = ("%s non conforme aux règles françaises de la réforme "
-                "(%d point%s bloquant%s)."
-                % (", mais" if positive_head else " et", bloquants, plural, plural))
+        # Le compte cité est celui des règles françaises en échec, pas celui
+        # des points bloquants : avant la bascule, les mêmes constatations sont
+        # des avertissements, et « 0 point bloquant » serait absurde.
+        entry = pass_by_id(validation, "regles_fr_ctc") or {}
+        points = entry.get("errors") or bloquants
+        plural = "s" if points > 1 else ""
+        regime = (validation.get("reforme_fr") or {}).get("regime")
+        if regime == "avertissement":
+            echeance = date_francaise(
+                (validation.get("reforme_fr") or {}).get("bascule"))
+            detail = ("%d point%s : avertissement%s aujourd'hui, bloquant%s à "
+                      "partir du %s" % (points, plural, plural, plural, echeance))
+        else:
+            detail = "%d point%s bloquant%s" % (points, plural, plural)
+        tail = ("%s non conforme aux règles françaises de la réforme (%s)."
+                % (", mais" if positive_head else " et", detail))
     else:
         tail = " ; conformité aux règles françaises de la réforme non vérifiée."
 
@@ -1716,7 +1804,7 @@ def empty_validation(manifest: dict, reason: str) -> dict:
     }
 
 
-def build(path: str, do_validate: bool) -> tuple[dict, int]:
+def build(path: str, do_validate: bool, date_ref: str) -> tuple[dict, int]:
     manifest = load_manifest()
 
     if not os.path.isfile(path):
@@ -1884,7 +1972,8 @@ def build(path: str, do_validate: bool) -> tuple[dict, int]:
         xml_text = xml_bytes.decode("utf-8", errors="replace")
 
     validation, validation_checks = validate(xml_bytes, xml_text, root, invoice,
-                                             profile_label, manifest, do_validate)
+                                             profile_label, manifest, do_validate,
+                                             date_ref)
     checks.extend(validation_checks)
 
     conforme_profil = conformity(validation, "profil_fnfe")
@@ -1900,12 +1989,25 @@ def build(path: str, do_validate: bool) -> tuple[dict, int]:
             "bloquants": bloquants,
             "alertes": alertes,
             "conforme_profil": conforme_profil,
+            # Le fait ne bouge pas avec la date : la facture satisfait les
+            # règles françaises, ou non. C'est la sévérité et l'urgence qui
+            # sont datées.
             "conforme_reforme_fr": conforme_reforme,
+            "reforme_fr": validation["reforme_fr"],
             "verdict": build_verdict("ok", profile_label, validation, bloquants,
                                      alertes, conforme_profil, conforme_reforme),
         },
     })
     return base, 0
+
+
+def date_ref_valide(valeur: str) -> str:
+    from datetime import date
+    try:
+        return date.fromisoformat(valeur).isoformat()
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "date attendue au format AAAA-MM-JJ, reçu %r" % valeur)
 
 
 def main(argv=None) -> int:
@@ -1918,8 +2020,15 @@ def main(argv=None) -> int:
                         help="n'exécute aucune passe de validation")
     parser.add_argument("--json-only", action="store_true",
                         help="n'écrit aucun diagnostic sur stderr")
+    parser.add_argument("--date-ref", metavar="AAAA-MM-JJ", type=date_ref_valide,
+                        default=None,
+                        help="date d'appréciation des règles françaises "
+                             "(défaut : aujourd'hui)")
     args = parser.parse_args(argv)
     _QUIET = args.json_only
+    # Seul endroit du script où l'horloge est lue : à entrées données, la
+    # sortie est reproductible.
+    date_ref = args.date_ref or __import__("datetime").date.today().isoformat()
 
     # --json-only tait aussi les diagnostics des bibliothèques tierces (pypdf,
     # lxml, Saxon) : elles écrivent sur sys.stderr, qu'on remplace par un
@@ -1944,7 +2053,8 @@ def main(argv=None) -> int:
                              indent=2, ensure_ascii=False))
             return 1
 
-        result, code = build(args.pdf, do_validate=not args.no_validate)
+        result, code = build(args.pdf, do_validate=not args.no_validate,
+                             date_ref=date_ref)
     except Exception as exc:  # filet de sécurité : stdout reste du JSON
         warn("erreur inattendue : %r" % exc)
         manifest_pack = {"fnfe_pack": None, "pack_date": None}
