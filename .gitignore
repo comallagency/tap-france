@@ -1,0 +1,6 @@
+# Environnement de développement local, jamais versionné.
+.venv/
+
+# Produit à l'exécution.
+__pycache__/
+*.pyc

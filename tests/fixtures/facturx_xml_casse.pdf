@@ -1,0 +1,82 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/Names 8 0 R
+/AF [ 6 0 R ]
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/Resources <<
+>>
+/MediaBox [ 0.0 0.0 595 842 ]
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Type /EmbeddedFile
+/Subtype /text#232Fxml
+/Length 31
+>>
+stream
+<rsm:CrossIndustryInvoice><oups
+endstream
+endobj
+6 0 obj
+<<
+/Type /Filespec
+/F (factur\055x\056xml)
+/UF (factur\055x\056xml)
+/AFRelationship /Data
+/EF <<
+/F 5 0 R
+>>
+>>
+endobj
+7 0 obj
+<<
+/Names [ (factur\055x\056xml) 6 0 R ]
+>>
+endobj
+8 0 obj
+<<
+/EmbeddedFiles 7 0 R
+>>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000113 00000 n 
+0000000189 00000 n 
+0000000283 00000 n 
+0000000407 00000 n 
+0000000534 00000 n 
+0000000593 00000 n 
+trailer
+<<
+/Size 9
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+635
+%%EOF

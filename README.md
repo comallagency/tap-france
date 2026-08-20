@@ -1,0 +1,80 @@
+# tap-france
+
+Skills Hermes pour la conformité réglementaire française. Une seule skill pour l'instant : la réception de factures électroniques Factur-X.
+
+| | |
+|---|---|
+| `skills/finance/facturx-reception/` | la skill : `SKILL.md`, `scripts/`, `schemas/` |
+| `CONTRAT-facturx-reception.md` | **référence normative** de l'implémentation |
+| `tests/` | suite de tests, fixtures comprises |
+| `scripts/install-skill.sh` | installe les skills dans `~/.hermes/skills/` |
+
+Le contrat prime sur le code : toute divergence entre les deux est un bug du code.
+
+## Installation dans Hermes
+
+```bash
+./scripts/install-skill.sh
+```
+
+Copie chaque skill du dépôt vers `~/.hermes/skills/`, puis vérifie que la copie correspond au dépôt (`diff -r`, plus une empreinte SHA-256 de l'arbre). Sortie `0` si tout concorde, `1` sinon — utilisable en CI.
+
+```bash
+./scripts/install-skill.sh --check     # vérifie seulement, n'écrit rien
+./scripts/install-skill.sh --dry-run   # montre ce qui serait fait
+```
+
+**À relancer après chaque modification du dépôt.** C'est une copie, pas un lien : rien ne se propage tout seul, et `--check` est là pour vous le dire avant que vous ne testiez une version périmée.
+
+### Pourquoi une copie et pas un lien symbolique
+
+Hermes monte `~/.hermes/skills` dans le bac à sable du terminal, ce qui rend `scripts/` et `schemas/` exécutables par l'agent. Mais un bind mount suit les liens symboliques, donc `get_skills_directory_mount()` (`tools/credential_files.py`) refuse d'exposer un arbre qui en contient : il en fabrique une copie assainie **d'où les liens sont retirés**.
+
+Conséquence : une skill installée par `ln -s` disparaît purement et simplement du conteneur, et — pire — un seul lien n'importe où dans l'arbre dégrade *toutes* les autres skills vers cette copie. L'échec est silencieux côté agent, seule une ligne de log en témoigne. `install-skill.sh` refuse donc de s'exécuter s'il trouve un lien symbolique, à la source comme à la destination.
+
+## Dépendances
+
+```bash
+python3 -m pip install pypdf lxml      # socle, obligatoire
+python3 -m pip install saxonche        # validation des règles françaises
+```
+
+Dans **l'interpréteur qu'utilise l'agent**, pas dans un venv de projet : c'est l'erreur d'installation la plus fréquente. En cas de doute, lancez le script sur n'importe quel fichier — s'il manque quelque chose, il renvoie `status: "missing_dependency"` et un champ `remede` contenant la commande exacte, construite avec le chemin de l'interpréteur qui vient d'échouer.
+
+Sans `saxonche`, la skill fonctionne normalement en `level: 1` : structure validée, règles françaises déclarées non vérifiées. Ce n'est pas une panne.
+
+## Voir la facture depuis le bac à sable
+
+Par défaut, Hermes monte les skills dans le conteneur mais **pas** votre répertoire de travail (`docker_mount_cwd_to_workspace: false`, choix délibéré d'isolation). L'agent peut donc exécuter le script, mais pas atteindre votre facture.
+
+Le script le détecte et renvoie `status: "file_not_visible"` plutôt qu'un « fichier introuvable » trompeur. Pour y remédier, dans `~/.hermes/config.yaml` :
+
+```yaml
+terminal:
+  docker_mount_cwd_to_workspace: true
+```
+
+puis purger les conteneurs persistants, sans quoi le changement reste sans effet :
+
+```bash
+docker rm -f $(docker ps -aq --filter name=hermes-)
+```
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+90 tests. Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
+
+Deux d'entre eux méritent d'être connus avant toute modification de la passe `coherence` :
+
+- **Non-régression n°1** — une facture MINIMUM officielle FNFE ne doit produire **aucune** erreur `BR-CO-*`. C'est le garde-fou contre la pire régression possible : déclarer non conforme une facture parfaitement légale.
+- **Son symétrique** — une facture BASIC WL dont le seul total TTC est faussé de 1,00 € doit être détectée. La prudence de la passe ne doit pas la rendre aveugle.
+
+## Licences des schémas embarqués
+
+XSD des cinq profils : `akretion/factur-x`, BSD-3-Clause. Validateurs de profil et règles françaises BR-FR : pack officiel FNFE-MPE FR CTC, Apache 2.0. Détail et citations dans `skills/finance/facturx-reception/schemas/NOTICE.md`.
+
+Aucun téléchargement à l'exécution : tout est lu localement.

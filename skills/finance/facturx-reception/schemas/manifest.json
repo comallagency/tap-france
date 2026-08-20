@@ -1,0 +1,81 @@
+{
+  "generated_from": [
+    {
+      "pack": "akretion/factur-x",
+      "version": "1.09",
+      "date": null,
+      "license": "BSD-3-Clause",
+      "source": "https://github.com/akretion/factur-x — src/facturx/xsd_and_schematron/facturx-{minimum,basic,basicwl,en16931,extended}/",
+      "provides": [
+        "factur-x/MINIMUM",
+        "factur-x/BASIC",
+        "factur-x/BASICWL",
+        "factur-x/EN16931",
+        "factur-x/EXTENDED"
+      ],
+      "reason": "provenance unique et licence redistribuable sans réserve pour la totalité des XSD"
+    },
+    {
+      "pack": "FNFE SCHEMATRONS FR CTC",
+      "version": "FR_CTC_V1.4.0.03",
+      "date": "2026-08-04",
+      "license": "Apache-2.0",
+      "source": "https://fnfe-mpe.org/wp-content/uploads/2026/08/2026_08_04_FNFE_SCHEMATRONS_FR_CTC_V1.4.0.03.zip",
+      "provides": [
+        "fnfe/BASICWL",
+        "fnfe/EN16931",
+        "fnfe/EXTENDED"
+      ],
+      "reason": "validateurs officiels de profil et règles françaises de la réforme ; aucun XSD n'est repris de ce pack"
+    }
+  ],
+  "fnfe_pack": "FR_CTC_V1.4.0.03",
+  "pack_date": "2026-08-04",
+  "profiles": {
+    "MINIMUM": {
+      "xsd_dir": "factur-x/MINIMUM",
+      "xsd": "Factur-X_MINIMUM.xsd",
+      "facturx_version": "1.09",
+      "fnfe_dir": null,
+      "no_fnfe_reason": "aucun validateur officiel FNFE pour le profil MINIMUM"
+    },
+    "BASIC WL": {
+      "xsd_dir": "factur-x/BASICWL",
+      "xsd": "Factur-X_BASICWL.xsd",
+      "facturx_version": "1.09",
+      "fnfe_dir": "fnfe/BASICWL",
+      "profil_xslt": "FACTUR-X_BASIC-WL.xslt"
+    },
+    "BASIC": {
+      "xsd_dir": "factur-x/BASIC",
+      "xsd": "Factur-X_BASIC.xsd",
+      "facturx_version": "1.09",
+      "fnfe_dir": null,
+      "no_fnfe_reason": "aucun validateur officiel FNFE pour le profil BASIC dans le pack FR CTC V1.4.0.03"
+    },
+    "EN 16931": {
+      "xsd_dir": "factur-x/EN16931",
+      "xsd": "Factur-X_EN16931.xsd",
+      "facturx_version": "1.09",
+      "fnfe_dir": "fnfe/EN16931",
+      "profil_xslt": "FACTUR-X_EN16931.xslt"
+    },
+    "EXTENDED": {
+      "xsd_dir": "factur-x/EXTENDED",
+      "xsd": "Factur-X_EXTENDED.xsd",
+      "facturx_version": "1.09",
+      "facturx_version_note": "point d'entrée en 1.09 ; le module ReusableAggregateBusinessInformationEntity est livré en 1.09.2 par la source amont",
+      "fnfe_dir": "fnfe/EXTENDED",
+      "profil_xslt": "FACTUR-X_EXTENDED.xslt"
+    }
+  },
+  "fr_ctc_xslt": {
+    "regles_fr_ctc": "BR-FR-Flux2-Schematron-CII.xslt",
+    "alertes_fr": "BR-FR-Flux2-Schematron-CII_WARNING.xslt"
+  },
+  "assertion_language": {
+    "profil_fnfe": "en",
+    "regles_fr_ctc": "fr",
+    "alertes_fr": "fr"
+  }
+}
