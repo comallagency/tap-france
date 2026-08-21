@@ -13,3 +13,7 @@ __pycache__/
 
 skills/facturx-reception/schemas/factur-x/
 skills/facturx-reception/schemas/fnfe/
+
+# Document de travail interne : recherche préalable, avec ses annotations
+# non vérifiées. Conservé en local, hors du dépôt public.
+RECHERCHE.md
