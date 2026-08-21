@@ -51,7 +51,7 @@ valides au regard de ces XSD, et les cinq schémas compilent.
   Apache 2.0 autorise la redistribution dans un dépôt MIT, à condition de
   conserver cette attribution — d'où la présente page.
 
-- **Ambiguïté à lever avant publication.** Le PDF du pack énonce l'Apache 2.0,
+- **Une ambiguïté, et sur quoi nous nous appuyons.** Le PDF du pack énonce l'Apache 2.0,
   cité ci-dessus. Mais l'en-tête des fichiers `.sch` **sources** porte une
   mention différente :
 
@@ -64,12 +64,15 @@ valides au regard de ces XSD, et les cinq schémas compilent.
   Par ailleurs, ce que **nous** redistribuons, ce sont les `.xslt` compilés, qui
   ne portent aucune mention de licence.
 
-  Cette contradiction n'est pas tranchée. Elle est sans effet pour un usage
-  interne ; elle doit être confirmée auprès de FNFE-MPE
-  (`schematronReformeFE@fnfe-mpe.org`) avant publication du tap. Le repli, si la
-  redistribution n'était pas confirmée, est `scripts/fetch_schemas.py` : il
-  télécharge le pack officiel en une étape d'installation explicite, jamais à
-  l'exécution.
+  **La redistribution se fait sur la base de la mention explicite du document
+  officiel du pack**, qui est la déclaration de licence datée et circonstanciée,
+  et dont l'attribution est portée par la présente page comme l'Apache 2.0
+  l'exige. La contradiction avec l'en-tête des `.sch` est signalée ici plutôt
+  que tue ; elle peut être soulevée auprès de FNFE-MPE
+  (`schematronReformeFE@fnfe-mpe.org`).
+
+  Pour qui préfère ne rien embarquer, `scripts/fetch_schemas.py` télécharge le
+  pack officiel en une étape d'installation explicite, jamais à l'exécution.
 
 - **Réserve du producteur** : composants fournis « TEL QUEL », sans garantie ;
   il revient à chaque utilisateur de faire ses propres tests. Les anomalies se

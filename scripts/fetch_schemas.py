@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Repli d'installation : télécharge les schémas au lieu de les redistribuer.
+"""Option d'installation : télécharge les schémas au lieu de les embarquer.
 
     python3 scripts/fetch_schemas.py [--check] [--dest DOSSIER]
 
-**Non activé par défaut.** Les schémas sont aujourd'hui vendorisés dans le
-dépôt, et `facturx_extract.py` les lit localement sans jamais toucher au réseau.
-Ce script n'existe que pour le cas où la redistribution des XSLT du pack FNFE ne
-serait pas confirmée avant publication — voir l'ambiguïté EUPL / Apache 2.0
-consignée dans `skills/finance/facturx-reception/schemas/NOTICE.md`.
+**Non nécessaire par défaut.** Les schémas sont vendorisés dans le dépôt, sur la
+base de la mention Apache 2.0 du document officiel du pack FNFE — voir
+`skills/finance/facturx-reception/schemas/NOTICE.md`, qui porte l'attribution et
+cite aussi la mention EUPL divergente de l'en-tête des fichiers sources.
 
-Si ce repli devait être activé, la promesse « aucun appel réseau » resterait
-tenue : le téléchargement est une étape d'installation explicite, lancée à la
-main une fois, jamais un appel au moment où l'on traite une facture.
+Ce script sert à qui préfère ne rien embarquer : distribution interne soumise à
+sa propre politique, ou volonté de repartir des fichiers amont. La promesse
+« aucun appel réseau » reste tenue — le téléchargement est une étape
+d'installation explicite, lancée à la main une fois, jamais un appel au moment
+où l'on traite une facture.
 
     --check   vérifie que les schémas attendus sont présents et n'écrit rien
 """
@@ -132,8 +133,8 @@ def recuperer_xsd(dest: str) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Télécharge les schémas Factur-X et FNFE (repli "
-                    "d'installation ; non activé par défaut).")
+        description="Télécharge les schémas Factur-X et FNFE au lieu de les "
+                    "embarquer (option d'installation ; non nécessaire par défaut).")
     parser.add_argument("--check", action="store_true",
                         help="vérifie la présence des schémas, n'écrit rien")
     parser.add_argument("--dest", default=DEST_DEFAUT,
@@ -143,9 +144,8 @@ def main(argv=None) -> int:
     if args.check:
         return verifier(args.dest)
 
-    print("Ce script n'est PAS nécessaire dans l'état actuel du dépôt : les "
-          "schémas y sont vendorisés.\nIl n'existe que comme repli si leur "
-          "redistribution ne pouvait pas être confirmée.\n"
+    print("Ce script n'est pas nécessaire dans l'état actuel du dépôt : les "
+          "schémas y sont vendorisés.\nIl sert à qui préfère ne rien embarquer. "
           "Voir schemas/NOTICE.md.\n")
     recuperer_fnfe(args.dest)
     recuperer_xsd(args.dest)

@@ -467,10 +467,16 @@ L'archivage légal fera l'objet d'une skill distincte — la seule du tap autori
 
 ---
 
-## 12. Point ouvert bloquant pour la publication
+## 12. Licence de redistribution — tranché
 
-Licence de redistribution des XSLT et schematrons FNFE dans un dépôt MIT. À trancher en lisant `2026_06_30_FNFE_SCHEMATRONS_FR_CTC_V1.4.0.pdf` (fourni dans le pack officiel).
+Le point était ouvert et bloquait la publication. Il est refermé.
 
-Non bloquant pour développer en local. **Bloquant pour publier le tap.**
+Page 8 de `2026_06_30_FNFE_SCHEMATRONS_FR_CTC_V1.4.0.pdf`, fourni dans le pack officiel :
 
-Repli si la redistribution est interdite : un script `scripts/fetch_schemas.py` que l'utilisateur exécute une fois pour télécharger les schémas depuis fnfe-mpe.org. Moins pratique, mais légalement propre — et cohérent avec la promesse « zéro appel réseau à l'exécution », le téléchargement étant une étape d'installation explicite, jamais un appel au runtime.
+> L'utilisation des schematrons d'application de la Norme XP Z12-012 est libre de droits, sur une base « TEL QUEL » (« AS IS »), sous réserve des limitations susmentionnées, et relève des dispositions de licence Apache 2.0.
+
+**La redistribution se fait sur cette base.** L'Apache 2.0 autorise l'inclusion dans un dépôt MIT à condition de conserver l'attribution : elle est portée par `schemas/NOTICE.md`.
+
+Une ambiguïté subsiste et n'est pas dissimulée : l'en-tête des fichiers `.sch` **sources** mentionne l'EUPL, licence à réciprocité. La formulation y paraît fautive — « version 1.4.0 » est le numéro du pack, pas celui de l'EUPL, dont les versions vont de 1.0 à 1.2 — et ce que nous redistribuons sont les `.xslt` compilés, qui ne portent aucune mention. Le document du pack, daté et circonstancié, l'emporte. Les deux mentions sont citées côte à côte dans `schemas/NOTICE.md`.
+
+`scripts/fetch_schemas.py` demeure, non comme repli juridique mais comme option d'installation pour qui préfère ne rien embarquer : il télécharge les schémas en une étape explicite, jamais à l'exécution — la promesse « zéro appel réseau au runtime » reste entière.

@@ -124,9 +124,11 @@ Les schémas embarqués ne le sont pas :
 - **XSD des cinq profils Factur-X** — [`akretion/factur-x`](https://github.com/akretion/factur-x), BSD-3-Clause
 - **Validateurs de profil et règles françaises** — pack officiel FNFE-MPE FR CTC
 
-Le document du pack FNFE annonce une mise à disposition libre sous Apache 2.0, tandis que l'en-tête de certains fichiers source mentionne l'EUPL. **Cette ambiguïté n'est pas levée.** Elle est documentée, citations à l'appui, dans [`skills/finance/facturx-reception/schemas/NOTICE.md`](skills/finance/facturx-reception/schemas/NOTICE.md), et doit être tranchée avec la FNFE avant toute publication.
+Sur ce second point, une ambiguïté existe et nous la disons plutôt que de la taire. Le document officiel du pack FNFE énonce une mise à disposition libre sous **Apache 2.0** ; l'en-tête de certains fichiers source mentionne en revanche l'**EUPL**. Les deux mentions figurent, citations à l'appui, dans [`skills/finance/facturx-reception/schemas/NOTICE.md`](skills/finance/facturx-reception/schemas/NOTICE.md).
 
-En repli, `scripts/fetch_schemas.py` récupère les schematrons XSLT auprès de la FNFE et les XSD auprès d'Akretion, à l'installation, plutôt que de les embarquer dans le dépôt.
+**Nous redistribuons sur la base de la mention explicite du document officiel du pack**, qui est la déclaration de licence datée et circonstanciée. L'attribution FNFE-MPE est portée dans `NOTICE.md`, comme l'Apache 2.0 l'exige.
+
+Si vous préférez ne rien embarquer, `scripts/fetch_schemas.py` récupère à l'installation les schematrons XSLT auprès de la FNFE et les XSD auprès d'Akretion.
 
 Nous préférons afficher un doute que le taire.
 
