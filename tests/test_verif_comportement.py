@@ -165,6 +165,86 @@ class TestAutresAlterations(DetecteurCase):
         self.assertIn("3. échéance de la réforme        : NON", rendu)
 
 
+class TestRunInexploitable(DetecteurCase):
+    """Un run avorté n'est pas un échec du modèle.
+
+    Sans ce troisième verdict, une coupure chez le fournisseur d'inférence se
+    lit comme une désobéissance, et on durcit une consigne que personne n'a
+    enfreinte."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.attendues = vc.lignes_utiles(cls.rapport)
+
+    def test_reponse_vide(self):
+        self.assertEqual(vc.run_inexploitable("", self.attendues), "réponse vide")
+        self.assertEqual(vc.run_inexploitable("   \n\n  ", self.attendues),
+                         "réponse vide")
+
+    def test_quota_du_fournisseur(self):
+        panne = vc.run_inexploitable(
+            "API call failed after 3 retries: HTTP 429: Provider returned error",
+            self.attendues)
+        self.assertEqual(panne, "quota du fournisseur épuisé")
+
+    def test_erreur_serveur(self):
+        self.assertIsNotNone(vc.run_inexploitable(
+            "⚠️ API call failed (attempt 1/3): HTTP 503", self.attendues))
+
+    def test_une_erreur_rattrapee_ne_compte_pas(self):
+        """Un 429 rattrapé à la deuxième tentative laisse sa trace alors que la
+        réponse est parfaite : le rapport présent l'emporte sur le marqueur."""
+        avec_trace = "⚠️ Rate limited. Waiting 3.0s (attempt 2/3)...\n\n" + self.rapport
+        self.assertIsNone(vc.run_inexploitable(avec_trace, self.attendues))
+
+    def test_une_reponse_alteree_reste_non_conforme(self):
+        """Le nouveau verdict ne doit pas devenir une porte de sortie."""
+        abime = "Voici le résultat :\n\n" + self.rapport
+        self.assertIsNone(vc.run_inexploitable(abime, self.attendues))
+        self.assertRefuse(abime, "phrase d'accueil")
+
+    def test_transcript_reel_de_run_avorte(self):
+        """Z1 — trois HTTP 429 d'affilée, le modèle n'a jamais répondu."""
+        chemin = os.path.join(TRANSCRIPTS, "z1_run_avorte.txt")
+        reponse = vc.reponse_finale(chemin)
+        panne = vc.run_inexploitable(reponse, self.attendues)
+        self.assertEqual(panne, "quota du fournisseur épuisé")
+        code = vc.main([chemin, "--date-ref", DATE_AVANT])
+        self.assertEqual(code, 3)
+
+    def test_les_trois_codes_de_sortie_sont_distincts(self):
+        conforme = vc.main([os.path.join(TRANSCRIPTS, "w1_conforme.txt"),
+                            "--date-ref", DATE_AVANT])
+        non_conforme = vc.main([os.path.join(TRANSCRIPTS, "w2_preambule.txt"),
+                                "--date-ref", DATE_AVANT])
+        avorte = vc.main([os.path.join(TRANSCRIPTS, "z1_run_avorte.txt"),
+                          "--date-ref", DATE_AVANT])
+        self.assertEqual((conforme, non_conforme, avorte), (0, 1, 3))
+        # 2 reste à argparse : une campagne doit distinguer « mal appelé »
+        # de « run avorté ».
+        self.assertNotIn(2, (conforme, non_conforme, avorte))
+
+
+class TestTranscriptsAnonymes(DetecteurCase):
+    """Les transcripts versionnés ne doivent pas exposer d'arborescence."""
+
+    def test_aucun_chemin_personnel(self):
+        import glob
+        for chemin in glob.glob(os.path.join(TRANSCRIPTS, "*.txt")):
+            contenu = open(chemin, encoding="utf-8", errors="replace").read()
+            for interdit in ("/home/comall", "/mnt/c", "@gmail"):
+                self.assertNotIn(interdit, contenu,
+                                 "%s : %s" % (os.path.basename(chemin), interdit))
+
+    def test_ils_restent_lisibles_par_le_detecteur(self):
+        """L'anonymisation ne doit pas casser le pelage du cadre hermes."""
+        for nom, debut in (("w1_conforme.txt", "Facture n° FA-2017-0010"),
+                           ("w2_preambule.txt", "Script executed successfully")):
+            reponse = vc.reponse_finale(os.path.join(TRANSCRIPTS, nom))
+            self.assertTrue(reponse.startswith(debut), nom)
+
+
 class TestEnvironnementDuRun(DetecteurCase):
     """Le bac à sable de l'agent n'a pas forcément saxonche.
 

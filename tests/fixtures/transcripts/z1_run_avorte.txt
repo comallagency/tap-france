@@ -1,0 +1,39 @@
+Query: Utilise la skill facturx-reception sur 
+tests/fixtures/Facture_FR_BASICWL.pdf
+Initializing agent...
+────────────────────────────────────────
+
+⚠️  API call failed (attempt 1/3): RateLimitError [HTTP 429]
+   🔌 Provider: openrouter  Model: poolside/laguna-s-2.1:free
+   🌐 Endpoint: https://openrouter.ai/api/v1
+   📝 Error: HTTP 429: Provider returned error
+   📋 Details: {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'poolside/laguna-s-2.1:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Poolside', 'is_byok': Fa
+   ⏱️  Elapsed: 0.87s  Context: 2 msgs, ~4,567 tokens
+⏱️ Rate limited. Waiting 3.0s (attempt 2/3)...
+⚠️  API call failed (attempt 2/3): RateLimitError [HTTP 429]
+   🔌 Provider: openrouter  Model: poolside/laguna-s-2.1:free
+   🌐 Endpoint: https://openrouter.ai/api/v1
+   📝 Error: HTTP 429: Provider returned error
+   📋 Details: {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'poolside/laguna-s-2.1:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Poolside', 'is_byok': Fa
+   ⏱️  Elapsed: 4.60s  Context: 2 msgs, ~4,567 tokens
+⏱️ Rate limited. Waiting 5.2s (attempt 3/3)...
+⚠️  API call failed (attempt 3/3): RateLimitError [HTTP 429]
+   🔌 Provider: openrouter  Model: poolside/laguna-s-2.1:free
+   🌐 Endpoint: https://openrouter.ai/api/v1
+   📝 Error: HTTP 429: Provider returned error
+   📋 Details: {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'poolside/laguna-s-2.1:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Poolside', 'is_byok': Fa
+   ⏱️  Elapsed: 10.53s  Context: 2 msgs, ~4,567 tokens
+❌ Rate limited after 3 retries — HTTP 429: Provider returned error
+   💀 Final error: HTTP 429: Provider returned error
+ ─  ⚕ Hermes  ───────────────────────────────────────────────────────────────── 
+                                                                                
+ API call failed after 3 retries: HTTP 429: Provider returned error             
+                                                                                
+ ────────────────────────────────────────────────────────────────────────────── 
+
+Resume this session with:
+  hermes --resume 20260821_130353_a77c83
+
+Session:        20260821_130353_a77c83
+Duration:       14s
+Messages:       1 (1 user, 0 tool calls)

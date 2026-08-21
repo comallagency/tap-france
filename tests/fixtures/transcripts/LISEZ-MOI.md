@@ -8,6 +8,10 @@ références de non-régression.
 | `w1_conforme.txt` | le rapport recopié seul, rien avant, rien après |
 | `w2_preambule.txt` | « Script executed successfully. Here is the report: » — le préambule de compte rendu, mode de défaillance qui a résisté à deux rédactions de la consigne |
 | `x2_niveau1.txt` | un bac à sable sans `saxonche` : le rapport y est légitimement plus court, et le détecteur avait d'abord accusé le modèle de l'avoir amputé |
+| `z1_run_avorte.txt` | trois HTTP 429 d'affilée chez le fournisseur d'inférence : le modèle n'a jamais répondu, et le détecteur comparait le rapport attendu à un journal d'erreurs |
+
+Les chemins y sont anonymisés (`/home/agent/tap-france`) : ces fichiers sont
+publics, et l'arborescence d'une machine de développement n'a rien à y faire.
 
 Ils **se périment** : ils contiennent le rapport tel qu'il était au moment du
 run, et le rapport évolue. `x2_niveau1.txt` est déjà dans ce cas.

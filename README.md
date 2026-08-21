@@ -95,13 +95,15 @@ Conséquence directe : **la skill fonctionne aussi bien sur un petit modèle loc
 
 ## Deux suites de tests, parce qu'il y a deux risques
 
-Le premier risque est que le code se trompe. Une suite unitaire classique le couvre — plus de 150 tests sur les cinq profils, les cas dégradés, l'arithmétique, les régimes de date.
+Le premier risque est que le code se trompe. Une suite unitaire classique le couvre — plus de 160 tests sur les cinq profils, les cas dégradés, l'arithmétique, les régimes de date.
 
 Le second risque est **que le modèle n'obéisse pas**, et aucune suite unitaire ne le voit. C'est là que ce projet a le plus dérapé : sur une même facture, avec des consignes strictement identiques et à quelques minutes d'intervalle, le modèle a reproduit fidèlement les constatations **1 fois sur 9**, puis **6 fois sur 9**. Tous les tests étaient verts.
 
-D'où `tests/verif_comportement.py` : il prend la réponse d'un agent, relance le script, compare, et signale toute ligne manquante, ajoutée, reformulée ou déplacée. Il est lui-même testé contre des réponses volontairement abîmées — un détecteur non éprouvé rassure sans garantir, ce qui est pire que pas de détecteur.
+D'où `tests/verif_comportement.py` : il prend la réponse d'un agent, relance le script, compare, et signale toute ligne manquante, ajoutée, reformulée ou déplacée. Il rend trois verdicts — conforme, non conforme, ou **run inexploitable** quand le modèle n'a pas répondu du tout. Cette troisième issue compte : sans elle, une coupure chez le fournisseur d'inférence se lit comme une désobéissance, et on durcit une consigne que personne n'a enfreinte.
 
-Ce qu'il a déjà attrapé en conditions réelles : un préambule ajouté en anglais, et un faux positif de sa propre part qu'il a fallu corriger.
+Il est lui-même testé contre des réponses volontairement abîmées — un détecteur non éprouvé rassure sans garantir, ce qui est pire que pas de détecteur.
+
+Ce qu'il a déjà attrapé en conditions réelles : un préambule ajouté en anglais, un run avorté qu'il comptait à tort comme un échec, et un faux positif de sa propre part quand le bac à sable n'avait pas les mêmes dépendances que la machine de référence.
 
 ## Ce que la skill ne fait pas
 

@@ -10,7 +10,7 @@ I'll load the facturx-reception skill and check the target file in parallel.
   ┊ 📚 preparing skill_view…
   ┊ 💻 preparing terminal…
   ┊ 📚 skill     finance:facturx-reception  0.0s
-  ┊ 💻 $         test -f /home/comall/dev/internal/tap-france/tests/fixtures/Facture_FR_BASICWL.pdf + 2 commands  1.4s
+  ┊ 💻 $         test -f /home/agent/tap-france/tests/fixtures/Facture_FR_BASICWL.pdf + 2 commands  1.4s
 
 ╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
 The file path is relative to the tap-france repo. Since I'm in a Docker container at /workspace, let me locate both the file and the script.

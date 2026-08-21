@@ -23,8 +23,21 @@ Trois critères, tous binaires :
      successfully », « Le script a été exécuté avec succès (code 0) ») ;
   3. le compte à rebours figure bien, tant que la bascule n'est pas passée.
 
-Code de sortie 0 si les trois passent, 1 sinon — utilisable en CI dès qu'un
-transcript est produit.
+Trois verdicts, trois codes de sortie :
+
+  0  CONFORME          le modèle a affiché le rapport, et rien d'autre
+  1  NON CONFORME      il l'a altéré, tronqué, ou y a ajouté quelque chose
+  3  RUN INEXPLOITABLE le modèle n'a pas répondu — quota du fournisseur,
+                       erreur serveur, réponse vide
+
+Le troisième existe parce qu'un run avorté n'est pas un échec du modèle et ne
+doit pas être compté comme tel dans une campagne. Sans lui, une coupure chez le
+fournisseur d'inférence se lit comme une désobéissance, et on durcit une
+consigne que personne n'a enfreinte. Observé pour de vrai : trois HTTP 429
+d'affilée, et le détecteur comparait le rapport attendu à un journal d'erreurs.
+
+Le code 3 plutôt que 2 : argparse réserve déjà le 2 aux erreurs d'invocation,
+et une campagne doit pouvoir distinguer « mal appelé » de « run avorté ».
 
 Historique de ce que ce contrôle a mesuré :
 
@@ -61,6 +74,35 @@ BAVARDAGE = [
     ("phrase d'accueil", r"^\s*(voici|here is|résultat|bien sûr|j'ai )"),
     ("formule de politesse", r"j'espère|n'hésitez pas|si vous avez besoin"),
 ]
+
+
+# Signes qu'aucune réponse n'a été produite. Cherchés dans la réponse finale,
+# là où le modèle aurait dû écrire — pas dans le journal, où une erreur
+# transitoire rattrapée par une nouvelle tentative n'a rien d'anormal.
+PANNE_FOURNISSEUR = [
+    ("quota du fournisseur épuisé", r"RateLimitError|HTTP 429|Rate limited after"),
+    ("erreur du fournisseur", r"HTTP 5\d\d|Provider returned error|API call failed"),
+    ("appel interrompu", r"Final error|Connection error|Timeout|timed out"),
+]
+
+
+def run_inexploitable(reponse: str, attendues: list[str]) -> str | None:
+    """Raison pour laquelle le run n'a rien produit d'analysable, ou None.
+
+    Le seul signe d'erreur ne suffit pas : un 429 rattrapé à la deuxième
+    tentative laisse sa trace alors que la réponse est parfaite. On exige donc
+    que le rapport soit **absent**, c'est-à-dire qu'aucune de ses lignes ne
+    figure dans ce que le modèle a rendu.
+    """
+    if not reponse.strip():
+        return "réponse vide"
+    rendues = set(lignes_utiles(reponse))
+    if attendues and rendues & set(attendues):
+        return None
+    for raison, motif in PANNE_FOURNISSEUR:
+        if re.search(motif, reponse, re.I):
+            return raison
+    return None
 
 
 def reponse_finale(chemin: str) -> str:
@@ -254,12 +296,21 @@ def main(argv=None) -> int:
         print("Aucune réponse finale trouvée dans %s" % args.transcript)
         return 1
     resultat, environnement = rapport_attendu(args.pdf, args.date_ref, reponse)
+    attendues = lignes_utiles(resultat["rapport"])
 
-    succes, verdicts = controler(reponse, resultat["rapport"],
-                                 resultat.get("summary", {}))
     print("Transcript : %s" % os.path.basename(args.transcript))
     print("Facture    : %s" % os.path.basename(args.pdf))
+
+    panne = run_inexploitable(reponse, attendues)
+    if panne:
+        print("\n  Le modèle n'a pas répondu : %s." % panne)
+        print("  Rien à contrôler — ce run ne compte ni pour ni contre la skill.")
+        print("\n>>> RUN INEXPLOITABLE")
+        return 3
+
     print("Run mené avec : %s\n" % environnement)
+    succes, verdicts = controler(reponse, resultat["rapport"],
+                                 resultat.get("summary", {}))
     for ligne in verdicts:
         print("  " + ligne)
     print("\n>>> %s" % ("CONFORME" if succes else "NON CONFORME"))
