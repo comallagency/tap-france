@@ -7,6 +7,7 @@ Skills Hermes pour la conformité réglementaire française. Une seule skill pou
 | `skills/finance/facturx-reception/` | la skill : `SKILL.md`, `scripts/`, `schemas/` |
 | `CONTRAT-facturx-reception.md` | **référence normative** de l'implémentation |
 | `tests/` | suite de tests, fixtures comprises |
+| `tests/verif_comportement.py` | non-régression **comportementale** : ce que le modèle fait du rapport |
 | `scripts/install-skill.sh` | installe les skills dans `~/.hermes/skills/` |
 | `scripts/fetch_schemas.py` | repli d'installation, non activé — voir `schemas/NOTICE.md` |
 
@@ -91,6 +92,30 @@ Deux d'entre eux méritent d'être connus avant toute modification de la passe `
 
 - **Non-régression n°1** — une facture MINIMUM officielle FNFE ne doit produire **aucune** erreur `BR-CO-*`. C'est le garde-fou contre la pire régression possible : déclarer non conforme une facture parfaitement légale.
 - **Son symétrique** — une facture BASIC WL dont le seul total TTC est faussé de 1,00 € doit être détectée. La prudence de la passe ne doit pas la rendre aveugle.
+
+## Deux suites, parce qu'il y a deux risques
+
+`tests/test_facturx_extract.py` garde le **script** : à entrées données, la sortie est exacte. 118 tests, déterministes, qui tournent en dix-sept secondes.
+
+Ils ne peuvent rien dire du **modèle**. Or la skill ne vaut que par ce que l'utilisateur lit à la fin, et la suite unitaire n'a aucune prise dessus. Cet angle mort nous a coûté cher : les mêmes consignes de prose ont donné, sur la même facture, 9 messages officiels repris sur 9, puis 1, puis 6. Un run isolé ne prouvait rien, et on ne s'en apercevait qu'en relisant à l'œil.
+
+```bash
+python3 tests/verif_comportement.py /tmp/hermes_run.txt --date-ref 2026-08-21
+```
+
+`verif_comportement.py` referme l'écart. Il prend la réponse d'un run hermes, la compare au champ `rapport` produit par le script pour la même facture, et signale toute ligne surnuméraire ou manquante. Trois critères binaires — rapport intact, rien ajouté autour, compte à rebours présent — et un code de sortie exploitable en CI.
+
+L'intérêt n'est pas l'outillage, c'est le déplacement. Une propriété comportementale devient une propriété **mesurable** : au lieu d'espérer que le modèle tienne une consigne, on constate s'il l'a tenue, et on l'apprend en une seconde plutôt qu'en relisant vingt lignes. C'est le même mouvement que celui qui a fait naître le champ `rapport` — sortir de la prose tout ce qui peut être vérifié.
+
+Ce qu'il a déjà attrapé :
+
+| Run | Constat |
+|---|---|
+| V2 | préambule « Le script a été exécuté avec succès (code 0) » |
+| W1 | rapport recopié seul, rien autour — conforme |
+| W2 | préambule « Script executed successfully. Here is the report: » |
+
+Un transcript s'obtient en redirigeant la sortie : `hermes chat --toolsets skills,terminal -q "…" > /tmp/run.txt 2>&1`.
 
 ## Licences des schémas embarqués
 
