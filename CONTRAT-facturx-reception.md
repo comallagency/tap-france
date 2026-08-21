@@ -207,7 +207,7 @@ Les exécuter tous les deux comptait **deux fois les mêmes constatations** : ne
   "reason": "doublon mesuré : même jeu de règles que regles_fr_ctc (229 identifiants d'assertion, recouvrement 229/229, aucun propre à l'une ou l'autre), autre date d'application — mode WARNING jusqu'au 2026-09-01, mode FATAL ensuite" }
 ```
 
-Le recouvrement est consigné dans `schemas/manifest.json`, avec la méthode qui permet de le recalculer depuis les fichiers vendorisés.
+Le recouvrement est consigné dans `assets/manifest.json`, avec la méthode qui permet de le recalculer depuis les fichiers vendorisés.
 
 **Chaque passe non exécutée est déclarée** dans `not_applied` avec sa raison :
 
@@ -490,6 +490,6 @@ L'archivage légal fera l'objet d'une skill distincte — la seule du tap autori
 
 Les schémas officiels ne sont pas dans le dépôt. `skills/facturx-reception/scripts/fetch_schemas.py` les récupère à l'installation auprès de leurs éditeurs : les XSD chez Akretion (BSD-3-Clause), les validateurs de profil et les règles françaises dans le pack officiel FNFE-MPE.
 
-La question de leur redistribution ne se pose donc plus. Elle s'était posée : le document du pack FNFE énonce une mise à disposition sous Apache 2.0, l'en-tête de certains fichiers source mentionne l'EUPL. Les deux mentions restent citées dans `schemas/NOTICE.md`, parce qu'un utilisateur qui télécharge ces fichiers a le droit de savoir sous quelles conditions.
+La question de leur redistribution ne se pose donc plus. Elle s'était posée : le document du pack FNFE énonce une mise à disposition sous Apache 2.0, l'en-tête de certains fichiers source mentionne l'EUPL. Les deux mentions restent citées dans `references/NOTICE.md`, parce qu'un utilisateur qui télécharge ces fichiers a le droit de savoir sous quelles conditions.
 
 Ce choix n'a pas été fait pour éviter la question, mais parce que le scanner de sécurité d'Hermes classe toute skill de plus d'1 Mo comme suspecte — les schémas en pesaient 5,5. Le télécharger explicitement à l'installation coûte une commande et vaut mieux qu'un avertissement à chaque installation.

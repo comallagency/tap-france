@@ -46,7 +46,13 @@ SCHEMA_VERSION = "1.0"
 # et reste donc lue dans la source — pas décidée par nous.
 BASCULE_REFORME_FR = "2026-09-01"
 
-SCHEMAS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schemas")
+_SKILL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+# Les schémas sont téléchargés à l'installation ; le manifeste, lui, fait partie
+# de la skill. Il vit sous assets/ parce qu'Hermes n'embarque que les dossiers
+# references/, templates/, scripts/, assets/ et examples/ — un manifeste rangé
+# ailleurs ne serait jamais installé.
+SCHEMAS_DIR = os.path.join(_SKILL, "schemas")
+MANIFEST = os.path.join(_SKILL, "assets", "manifest.json")
 
 # --------------------------------------------------------------------------
 # Espaces de noms CII
@@ -1145,7 +1151,7 @@ def jours_avant_bascule(date_ref: str) -> int | None:
 
 
 def load_manifest() -> dict:
-    with open(os.path.join(SCHEMAS_DIR, "manifest.json"), encoding="utf-8") as handle:
+    with open(MANIFEST, encoding="utf-8") as handle:
         return json.load(handle)
 
 

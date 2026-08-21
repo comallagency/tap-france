@@ -129,7 +129,7 @@ Les schémas de validation ne sont pas dans ce dépôt. `skills/facturx-receptio
 - **XSD des cinq profils Factur-X** — [`akretion/factur-x`](https://github.com/akretion/factur-x), BSD-3-Clause
 - **Validateurs de profil et règles françaises `BR-FR-*`** — pack officiel FNFE-MPE FR CTC
 
-Ne rien redistribuer simplifie la question de leur licence, et allège la skill de 5,5 Mo. Les sources, leurs conditions et une ambiguïté relevée dans le pack FNFE — son document annonce l'Apache 2.0, l'en-tête de certains fichiers mentionne l'EUPL — restent documentées, citations à l'appui, dans [`skills/facturx-reception/schemas/NOTICE.md`](skills/facturx-reception/schemas/NOTICE.md).
+Ne rien redistribuer simplifie la question de leur licence, et allège la skill de 5,5 Mo. Les sources, leurs conditions et une ambiguïté relevée dans le pack FNFE — son document annonce l'Apache 2.0, l'en-tête de certains fichiers mentionne l'EUPL — restent documentées, citations à l'appui, dans [`skills/facturx-reception/references/NOTICE.md`](skills/facturx-reception/references/NOTICE.md).
 
 Nous préférons afficher un doute que le taire.
 

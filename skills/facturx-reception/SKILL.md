@@ -210,4 +210,4 @@ Tous les fichiers de validation sont embarqués dans la skill et lus localement.
 - XSD des cinq profils Factur-X : `akretion/factur-x`, BSD-3-Clause
 - Validateurs de profil et règles françaises BR-FR : pack officiel FNFE-MPE FR CTC, Apache 2.0
 
-Détail complet dans `schemas/NOTICE.md`, versions dans `schemas/manifest.json`.
+Détail complet dans `references/NOTICE.md`, versions dans `assets/manifest.json`.

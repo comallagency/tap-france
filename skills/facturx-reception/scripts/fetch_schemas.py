@@ -76,7 +76,6 @@ def attendus(dest: str) -> list[str]:
     for profil, entree in FNFE_PROFILS.items():
         for nom in XSLT_COMMUNS + ("%s.xslt" % entree, "%s_codedb.xml" % entree):
             chemins.append(os.path.join(dest, "fnfe", profil, nom))
-    chemins.append(os.path.join(dest, "manifest.json"))
     return chemins
 
 
@@ -154,7 +153,7 @@ def main(argv=None) -> int:
     recuperer_fnfe(args.dest)
     recuperer_xsd(args.dest)
 
-    manifeste = os.path.join(args.dest, "manifest.json")
+    manifeste = os.path.join(SKILL, "assets", "manifest.json")
     if os.path.isfile(manifeste):
         with open(manifeste, encoding="utf-8") as entree:
             json.load(entree)  # simple contrôle de lisibilité
