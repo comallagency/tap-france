@@ -37,7 +37,7 @@ python3 scripts/facturx_extract.py <chemin.pdf> [--no-validate] [--json-only]
 
 **Contraintes absolues :** aucun appel réseau **à l'exécution**, aucune écriture disque, aucune variable d'environnement requise.
 
-Les schémas de validation ne sont pas redistribués par le dépôt — trop volumineux, et de licence tierce. `scripts/fetch_schemas.py` les installe en une étape explicite, lancée une fois à la main. Le script de lecture des factures, lui, ne sort jamais de la machine : voir §9, `missing_schemas`.
+Les schémas de validation ne sont pas redistribués par le dépôt — trop volumineux, et de licence tierce. `skills/facturx-reception/scripts/fetch_schemas.py` les installe en une étape explicite, lancée une fois à la main. Le script de lecture des factures, lui, ne sort jamais de la machine : voir §9, `missing_schemas`.
 
 ---
 
@@ -488,7 +488,7 @@ L'archivage légal fera l'objet d'une skill distincte — la seule du tap autori
 
 ## 12. Licence — plus rien à redistribuer
 
-Les schémas officiels ne sont pas dans le dépôt. `scripts/fetch_schemas.py` les récupère à l'installation auprès de leurs éditeurs : les XSD chez Akretion (BSD-3-Clause), les validateurs de profil et les règles françaises dans le pack officiel FNFE-MPE.
+Les schémas officiels ne sont pas dans le dépôt. `skills/facturx-reception/scripts/fetch_schemas.py` les récupère à l'installation auprès de leurs éditeurs : les XSD chez Akretion (BSD-3-Clause), les validateurs de profil et les règles françaises dans le pack officiel FNFE-MPE.
 
 La question de leur redistribution ne se pose donc plus. Elle s'était posée : le document du pack FNFE énonce une mise à disposition sous Apache 2.0, l'en-tête de certains fichiers source mentionne l'EUPL. Les deux mentions restent citées dans `schemas/NOTICE.md`, parce qu'un utilisateur qui télécharge ces fichiers a le droit de savoir sous quelles conditions.
 

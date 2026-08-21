@@ -3,9 +3,13 @@
 
     python3 scripts/fetch_schemas.py [--check] [--dest DOSSIER]
 
+Lancé depuis le dossier de la skill. Il vit à l'intérieur de celle-ci — une
+skill installée depuis un tap ne reçoit que son propre dossier, et une commande
+d'installation qui pointerait ailleurs ne fonctionnerait chez personne.
+
 **Non nécessaire par défaut.** Les schémas sont vendorisés dans le dépôt, sur la
 base de la mention Apache 2.0 du document officiel du pack FNFE — voir
-`skills/facturx-reception/schemas/NOTICE.md`, qui porte l'attribution et
+`schemas/NOTICE.md`, qui porte l'attribution et
 cite aussi la mention EUPL divergente de l'en-tête des fichiers sources.
 
 Ce script sert à qui préfère ne rien embarquer : distribution interne soumise à
@@ -27,8 +31,8 @@ import os
 import sys
 import zipfile
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEST_DEFAUT = os.path.join(REPO, "skills", "facturx-reception", "schemas")
+SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEST_DEFAUT = os.path.join(SKILL, "schemas")
 
 PACK_FNFE = {
     "nom": "2026_08_04_FNFE_SCHEMATRONS_FR_CTC_V1.4.0.03",
@@ -79,7 +83,7 @@ def attendus(dest: str) -> list[str]:
 def verifier(dest: str) -> int:
     manquants = [c for c in attendus(dest) if not os.path.isfile(c)]
     for c in manquants:
-        print("  manquant : %s" % os.path.relpath(c, REPO))
+        print("  manquant : %s" % os.path.relpath(c, SKILL))
     if manquants:
         print("\n%d fichier(s) manquant(s). Relancer sans --check pour les "
               "télécharger." % len(manquants))
@@ -100,7 +104,7 @@ def poser(chemin: str, donnees: bytes) -> None:
     os.makedirs(os.path.dirname(chemin), exist_ok=True)
     with open(chemin, "wb") as sortie:
         sortie.write(donnees)
-    print("  %-58s %s" % (os.path.relpath(chemin, REPO),
+    print("  %-58s %s" % (os.path.relpath(chemin, SKILL),
                           hashlib.sha256(donnees).hexdigest()[:12]))
 
 
