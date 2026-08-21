@@ -1817,13 +1817,38 @@ def build_rapport(result: dict) -> str:
 
     blocs.append(summary["verdict"])
 
+    # L'échéance se raconte selon ce que la passe française a fait, pas selon
+    # la seule date. Annoncer « il reste 11 jours pour les faire corriger »
+    # quand rien n'a été vérifié laisse un « les » sans antécédent, et fait
+    # croire à l'existence de constatations qu'on n'a pas.
     reforme = summary.get("reforme_fr") or {}
     reste = reforme.get("jours_avant_bascule")
-    if reforme.get("regime") == "avertissement" and reste:
+    bascule = date_francaise(reforme.get("bascule"))
+    passe_fr = pass_by_id(result.get("validation") or {}, "regles_fr_ctc") or {}
+    constatations_fr = [c for c in result["checks"]
+                        if c["layer"] == "regles_fr_ctc"]
+
+    if not invoice:
+        # Fichier illisible, hors montage, socle absent : rien n'a été lu, et
+        # parler du calendrier de la réforme n'aurait aucun objet.
+        pass
+    elif not passe_fr.get("applied"):
+        echeance = ("deviennent bloquantes le %s" % bascule if reste
+                    else "sont bloquantes depuis le %s" % bascule)
+        blocs.append("La conformité aux règles françaises de la réforme n'a pas "
+                     "été vérifiée. Ces règles %s." % echeance)
+    elif constatations_fr and reste:
         blocs.append(
             "Il reste %d jour%s pour les faire corriger, jusqu'au %s."
-            % (reste, "s" if reste > 1 else "",
-               date_francaise(reforme.get("bascule"))))
+            % (reste, "s" if reste > 1 else "", bascule))
+
+    # Ce qui n'a pas pu être vérifié se dit là, en clair, et non en note de bas
+    # de texte : c'est une limite du résultat, pas un détail d'installation.
+    infos = [c for c in result["checks"] if c["severity"] == "info"] if invoice else []
+    validation_infos = [c for c in infos if c["layer"] == "validation"]
+    autres_infos = [c for c in infos if c["layer"] != "validation"]
+    for info in validation_infos:
+        blocs.append(info["message"])
 
     # Sur un statut terminal — fichier illisible, hors montage, socle absent,
     # XML non analysable — le verdict et le remède disent déjà tout. Y ajouter
@@ -1845,9 +1870,8 @@ def build_rapport(result: dict) -> str:
     if remede:
         blocs.append(remede)
 
-    infos = [c for c in result["checks"] if c["severity"] == "info"] if invoice else []
-    if infos:
-        blocs.append("À noter : " + " ".join(c["message"] for c in infos))
+    if autres_infos:
+        blocs.append("À noter : " + " ".join(c["message"] for c in autres_infos))
 
     return "\n\n".join(blocs)
 
@@ -1868,6 +1892,12 @@ def source_block(path: str) -> dict:
 # fait pas partie : son absence est un mode de fonctionnement normal (niveau 1),
 # pas une dépendance manquante.
 DEPENDANCES_SOCLE = ("pypdf", "lxml")
+
+# Ce que le remède fait installer : le socle **et** saxonche, en une seule
+# commande. Un modèle qui lit deux commandes séparées n'en exécute qu'une, et
+# la skill perd alors silencieusement sa raison d'être — la validation des
+# règles françaises. Constaté sur un run réel.
+PAQUETS_COMPLETS = ("pypdf", "lxml", "saxonche")
 
 
 def dependances_manquantes() -> list[str]:
@@ -1891,7 +1921,8 @@ def missing_dependency_result(path: str, manquant: list[str],
     script : un « pip install » générique installerait ailleurs, et le problème
     resterait entier.
     """
-    remede = "%s -m pip install %s" % (sys.executable, " ".join(manquant))
+    remede = "%s -m pip install %s" % (sys.executable,
+                                       " ".join(PAQUETS_COMPLETS))
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "missing_dependency",
@@ -1910,8 +1941,10 @@ def missing_dependency_result(path: str, manquant: list[str],
             "layer": "environnement",
             "message": ("Le module Python %s n'est pas installé pour "
                         "l'interpréteur qui exécute ce script. Rien n'a pu être "
-                        "lu du fichier. Installez-le avec la commande donnée "
-                        "par le champ « remede », puis relancez."
+                        "lu du fichier. La commande du champ « remede » installe "
+                        "en une fois tout ce dont la skill a besoin, saxonche "
+                        "compris — sans lui, les règles françaises de la réforme "
+                        "ne seraient pas vérifiées."
                         % " et ".join("« %s »" % m for m in manquant)),
             "location": None,
             "raw": None}],

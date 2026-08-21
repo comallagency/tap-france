@@ -335,11 +335,23 @@ Composition, dans cet ordre, chaque bloc étant omis s'il est sans objet :
 
 1. **En-tête de facture** — numéro, parties, montants, dates, acompte, moyen de paiement. Les montants y sont rendus à la française (`671.15` → `671,15 €`) : la virgule décimale remplace le point, aucun chiffre n'est ajouté ni retiré.
 2. **Verdict** — `summary.verdict`, sans retouche.
-3. **Compte à rebours** — seulement en régime d'avertissement, tant que `jours_avant_bascule` n'est pas `null`.
-4. **Une puce par constatation** `bloquant` ou `alerte`, dans l'ordre de `checks[]`, `message` repris à l'identique.
-5. **Phrase de clôture** quand les constatations relèvent de l'émetteur.
-6. **`remede`** quand il y en a un.
-7. **`À noter :`** pour les constatations `info`.
+3. **Échéance de la réforme** — trois cas, selon ce que la passe `regles_fr_ctc` a fait, jamais selon la seule date :
+
+   | `regles_fr_ctc` | Ce que le rapport dit |
+   |---|---|
+   | appliquée, avec constatations | « Il reste N jours pour les faire corriger, jusqu'au 1er septembre 2026. » |
+   | appliquée, sans constatation | rien — il n'y a rien à corriger |
+   | non appliquée | « La conformité aux règles françaises de la réforme n'a pas été vérifiée. Ces règles deviennent bloquantes le 1er septembre 2026. » |
+
+   Sur un statut terminal, rien non plus : aucune facture n'a été lue.
+
+   > **Jamais de « les » sans antécédent.** Annoncer « il reste 11 jours pour **les** faire corriger » quand aucune règle n'a été évaluée fait croire à des constatations qu'on n'a pas. Le défaut a été trouvé sur un run réel, dans un bac à sable dépourvu de `saxonche`.
+
+4. **Ce qui n'a pas pu être vérifié**, en clair et à sa place — pas en note de bas de texte. L'absence de `saxonche` est une limite du résultat, pas un détail d'installation : elle dit ce qui n'a pas été contrôlé et la commande qui l'active.
+5. **Une puce par constatation** `bloquant` ou `alerte`, dans l'ordre de `checks[]`, `message` repris à l'identique.
+6. **Phrase de clôture** quand les constatations relèvent de l'émetteur.
+7. **`remede`** quand il y en a un.
+8. **`À noter :`** pour les constatations `info` restantes, celles qui portent sur la détection.
 
 ### Pourquoi le script et non le modèle
 

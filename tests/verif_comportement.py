@@ -65,19 +65,66 @@ BAVARDAGE = [
 
 def reponse_finale(chemin: str) -> str:
     """Dernier bloc de réponse d'un transcript hermes, sans le cadre ANSI."""
-    texte = ANSI.sub("", open(chemin, encoding="utf-8", errors="replace").read())
+    with open(chemin, encoding="utf-8", errors="replace") as entree:
+        return reponse_finale_texte(entree.read())
+
+
+def reponse_finale_texte(brut: str) -> str:
+    """Même chose, à partir du texte — pour tester le pelage du cadre."""
+    texte = ANSI.sub("", brut)
     final = CADRE_HERMES.split(texte)[-1].split("Resume this session")[0]
     lignes = [re.sub(r"^\s*[│┊]\s?", "", l).rstrip("│ ").rstrip()
               for l in final.splitlines()]
     return "\n".join(l for l in lignes if not BORDURE.match(l)).strip()
 
 
-def rapport_attendu(pdf: str, date_ref: str | None) -> dict:
+SANS_SAXONCHE = os.path.join(ROOT, "tests", "fixtures", "sans_saxonche")
+
+
+def executer(pdf: str, date_ref: str | None, saxon: bool) -> dict:
     commande = [sys.executable, SCRIPT, pdf, "--json-only"]
     if date_ref:
         commande += ["--date-ref", date_ref]
-    proc = subprocess.run(commande, capture_output=True, text=True, cwd=ROOT)
+    env = dict(os.environ)
+    if not saxon:
+        env["PYTHONPATH"] = SANS_SAXONCHE + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+    proc = subprocess.run(commande, capture_output=True, text=True, cwd=ROOT,
+                          env=env)
     return json.loads(proc.stdout)
+
+
+def rapport_attendu(pdf: str, date_ref: str | None, reponse: str) -> tuple[dict, str]:
+    """Le rapport auquel comparer, et l'environnement supposé du run.
+
+    Le bac à sable de l'agent n'a pas forcément `saxonche` : la validation y
+    tombe alors au niveau 1, et le rapport est légitimement plus court. Comparer
+    à celui de la machine locale accuserait le modèle d'avoir amputé un texte
+    qu'il a fidèlement recopié — un détecteur qui accuse à tort ne vaut pas
+    mieux qu'un détecteur qui laisse passer.
+
+    On produit donc les deux rapports possibles et on retient celui qui colle,
+    en disant lequel.
+    """
+    candidats = [(executer(pdf, date_ref, True), "saxonche installé (niveau 2)"),
+                 (executer(pdf, date_ref, False), "saxonche absent (niveau 1)")]
+    rendues = set(lignes_utiles(reponse))
+
+    def recouvrement(candidat) -> float:
+        """Mesure symétrique : compter les lignes communes ne suffit pas.
+
+        Un rapport de niveau 2 en partage deux avec une réponse de niveau 1
+        — l'en-tête et l'échéance — autant que le rapport de niveau 1 lui-même.
+        Rapporter les communes à l'union départage : le candidat le plus court
+        qui explique toute la réponse l'emporte sur le plus long qui n'en
+        explique qu'un morceau.
+        """
+        attendues = set(lignes_utiles(candidat[0]["rapport"]))
+        union = rendues | attendues
+        return len(rendues & attendues) / len(union) if union else 0.0
+
+    meilleur = max(candidats, key=recouvrement)
+    return meilleur[0], meilleur[1]
 
 
 def lignes_utiles(texte: str) -> list[str]:
@@ -119,6 +166,14 @@ def controler(reponse: str, rapport: str, summary: dict) -> tuple[bool, list[str
     succes &= critere2
     verdicts.append("2. rien ajouté autour            : %s" % ok(critere2))
     for ligne in ajoutees:
+        proche = plus_proche(ligne, manquantes)
+        if proche:
+            # Une ligne ajoutée qui ressemble à une ligne perdue n'est pas un
+            # ajout : c'est une réécriture. Le dire, sinon le motif désigne
+            # le mauvais problème.
+            verdicts.append("     REFORMULÉE : %s" % ligne[:90])
+            verdicts.append("       à la place de : %s" % proche[:90])
+            continue
         motifs = [nom for nom, motif in BAVARDAGE
                   if re.search(motif, ligne, re.I)]
         verdicts.append("     AJOUTÉE : %s" % ligne[:100])
@@ -130,23 +185,58 @@ def controler(reponse: str, rapport: str, summary: dict) -> tuple[bool, list[str
         verdicts.append("     commence par le rapport : %s | finit par le rapport : %s"
                         % (ok(debut), ok(fin)))
 
-    # ── 3. compte à rebours ──────────────────────────────────────────────
-    reforme = (summary or {}).get("reforme_fr") or {}
-    attendu_rebours = (reforme.get("regime") == "avertissement"
-                       and reforme.get("jours_avant_bascule"))
-    if attendu_rebours:
-        critere3 = "Il reste %d jour" % reforme["jours_avant_bascule"] in reponse
-        verdicts.append("3. compte à rebours              : %s" % ok(critere3))
+    # ── 3. échéance de la réforme ────────────────────────────────────────
+    # Le rapport ne porte un compte à rebours que si la passe française a
+    # tourné et trouvé quelque chose. Le détecteur suit la même règle : il
+    # exige la phrase d'échéance que le rapport attendu contient, pas une
+    # phrase décidée d'après la seule date.
+    echeance = [l for l in attendues
+                if l.startswith("Il reste ") or l.startswith("La conformité aux "
+                                                             "règles françaises")]
+    if echeance:
+        critere3 = all(l in rendues for l in echeance)
+        verdicts.append("3. échéance de la réforme        : %s" % ok(critere3))
+        verdicts.append("     attendue : %s" % echeance[0][:90])
         succes &= critere3
     else:
-        verdicts.append("3. compte à rebours              : sans objet "
-                        "(bascule passée)")
+        verdicts.append("3. échéance de la réforme        : sans objet "
+                        "(le rapport n'en porte pas)")
 
     return succes, verdicts
 
 
 def ok(valeur: bool) -> str:
     return "OUI" if valeur else "NON"
+
+
+def plus_proche(ligne: str, candidates: list[str], seuil: float = 0.45) -> str | None:
+    """Ligne perdue dont `ligne` est visiblement la réécriture, s'il y en a une.
+
+    Sans ça, une puce reformulée serait comptée comme une ligne manquante *et*
+    une ligne ajoutée, et le motif affiché désignerait le mauvais problème.
+    """
+    meilleure, score = None, seuil
+    for candidate in candidates:
+        ratio = ressemblance(ligne, candidate)
+        if ratio > score:
+            meilleure, score = candidate, ratio
+    return meilleure
+
+
+def mots(ligne: str) -> set[str]:
+    return {m for m in re.findall(r"[\w’']+", ligne.lower()) if len(m) > 1}
+
+
+def ressemblance(a: str, b: str) -> float:
+    """Part des mots de la ligne la plus courte qu'on retrouve dans l'autre.
+
+    Un ratio de caractères pénaliserait une puce raccourcie de moitié — or
+    c'est précisément la forme que prend une reformulation.
+    """
+    ma, mb = mots(a), mots(b)
+    if not ma or not mb:
+        return 0.0
+    return len(ma & mb) / min(len(ma), len(mb))
 
 
 def main(argv=None) -> int:
@@ -159,16 +249,17 @@ def main(argv=None) -> int:
                         help="date d'appréciation utilisée par le run")
     args = parser.parse_args(argv)
 
-    resultat = rapport_attendu(args.pdf, args.date_ref)
     reponse = reponse_finale(args.transcript)
     if not reponse:
         print("Aucune réponse finale trouvée dans %s" % args.transcript)
         return 1
+    resultat, environnement = rapport_attendu(args.pdf, args.date_ref, reponse)
 
     succes, verdicts = controler(reponse, resultat["rapport"],
                                  resultat.get("summary", {}))
     print("Transcript : %s" % os.path.basename(args.transcript))
-    print("Facture    : %s\n" % os.path.basename(args.pdf))
+    print("Facture    : %s" % os.path.basename(args.pdf))
+    print("Run mené avec : %s\n" % environnement)
     for ligne in verdicts:
         print("  " + ligne)
     print("\n>>> %s" % ("CONFORME" if succes else "NON CONFORME"))

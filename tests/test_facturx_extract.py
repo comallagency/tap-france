@@ -600,6 +600,110 @@ class TestFichierHorsMontage(ContractCase):
         self.assertEqual(result["status"], "unreadable")
 
 
+class TestEcheanceReforme(ContractCase):
+    """§8 bis — l'échéance se raconte selon ce que la passe française a fait,
+    pas selon la seule date.
+
+    « Il reste 11 jours pour **les** faire corriger » quand rien n'a été
+    vérifié laisse un « les » sans antécédent, et fait croire à des
+    constatations qu'on n'a pas."""
+
+    def test_passe_appliquee_avec_constatations(self):
+        result, _ = self.result_for(BASICWL, "--json-only",
+                                    "--date-ref", DATE_AVANT)
+        self.assertIn("Il reste 11 jours pour les faire corriger, "
+                      "jusqu'au 1er septembre 2026.", result["rapport"])
+        self.assertNotIn("n'a pas été vérifiée. Ces règles", result["rapport"])
+
+    def test_passe_appliquee_sans_constatation(self):
+        """Aucune fixture n'y parvient — toutes échouent aux règles françaises —
+        donc on assemble le rapport directement."""
+        result, _ = self.result_for(BASICWL, "--json-only",
+                                    "--date-ref", DATE_AVANT)
+        result["checks"] = [c for c in result["checks"]
+                            if c["layer"] != "regles_fr_ctc"]
+        rapport = fx.build_rapport(result)
+        self.assertNotIn("Il reste", rapport)
+        self.assertNotIn("n'a pas été vérifiée", rapport)
+
+    def test_passe_non_appliquee(self):
+        result, _ = self.result_for(BASICWL, "--json-only",
+                                    "--date-ref", DATE_AVANT,
+                                    env=sans(SANS_SAXONCHE))
+        self.assertIn("La conformité aux règles françaises de la réforme n'a "
+                      "pas été vérifiée. Ces règles deviennent bloquantes le "
+                      "1er septembre 2026.", result["rapport"])
+        self.assertNotIn("Il reste", result["rapport"])
+
+    def test_passe_non_appliquee_apres_la_bascule(self):
+        result, _ = self.result_for(BASICWL, "--json-only",
+                                    "--date-ref", DATE_APRES,
+                                    env=sans(SANS_SAXONCHE))
+        self.assertIn("Ces règles sont bloquantes depuis le 1er septembre 2026.",
+                      result["rapport"])
+
+    def test_jamais_de_les_sans_antecedent(self):
+        """Le défaut qu'un run réel a mis au jour."""
+        for env in (None, sans(SANS_SAXONCHE)):
+            for date in (DATE_AVANT, DATE_APRES):
+                result, _ = self.result_for(BASICWL, "--json-only",
+                                            "--date-ref", date, env=env)
+                rapport = result["rapport"]
+                if "pour les faire corriger" in rapport:
+                    self.assertTrue(
+                        [c for c in result["checks"]
+                         if c["layer"] == "regles_fr_ctc"],
+                        "« les » sans constatation à laquelle se rapporter")
+
+
+class TestNoteNiveau1(ContractCase):
+    """§8 bis — ce qui n'a pas pu être vérifié se dit en clair, pas en note."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result, _ = cls.result_for(BASICWL, "--json-only",
+                                       "--date-ref", DATE_AVANT,
+                                       env=sans(SANS_SAXONCHE))
+        cls.blocs = cls.result["rapport"].split("\n\n")
+
+    def test_la_note_est_un_bloc_a_part_entiere(self):
+        note = [b for b in self.blocs if b.startswith("saxonche n'est pas")]
+        self.assertEqual(len(note), 1)
+        self.assertNotIn("À noter :", self.result["rapport"])
+
+    def test_elle_dit_ce_qui_manque_et_comment_l_activer(self):
+        note = next(b for b in self.blocs if b.startswith("saxonche"))
+        self.assertIn("n'a pas pu être exécutée", note)
+        self.assertIn("pip install saxonche", note)
+
+    def test_elle_precede_le_remede_et_les_autres_notes(self):
+        """Elle porte sur le résultat, pas sur l'installation : elle vient
+        avant les informations de second rang."""
+        position = next(i for i, b in enumerate(self.blocs)
+                        if b.startswith("saxonche"))
+        self.assertEqual(position, len(self.blocs) - 1)
+
+
+class TestRemedeComplet(ContractCase):
+    """§9 — une seule commande installe tout, saxonche compris."""
+
+    def test_le_remede_nomme_les_trois_paquets(self):
+        result, _ = self.result_for(BASICWL, "--json-only", env=sans(SANS_PYPDF))
+        for paquet in ("pypdf", "lxml", "saxonche"):
+            self.assertIn(paquet, result["remede"], paquet)
+
+    def test_manquant_reste_exact(self):
+        """`remede` installe tout ; `manquant` ne nomme que ce qui manque."""
+        result, _ = self.result_for(BASICWL, "--json-only", env=sans(SANS_PYPDF))
+        self.assertEqual(result["manquant"], ["pypdf"])
+
+    def test_saxonche_absent_ne_declenche_pas_missing_dependency(self):
+        result, proc = self.result_for(BASICWL, "--json-only",
+                                       env=sans(SANS_SAXONCHE))
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(proc.returncode, 0)
+
+
 class TestRapportDeduplication(ContractCase):
     """Une constatation, une puce — même quand deux passes la confirment.
 

@@ -39,9 +39,10 @@ Conséquence : une skill installée par `ln -s` disparaît purement et simplemen
 ## Dépendances
 
 ```bash
-python3 -m pip install pypdf lxml      # socle, obligatoire
-python3 -m pip install saxonche        # validation des règles françaises
+python3 -m pip install pypdf lxml saxonche
 ```
+
+Une seule commande, et pas trois quarts de skill. Sans `saxonche`, le script tourne encore mais ne vérifie plus les règles françaises de la réforme — sa raison d'être. Un run réel s'est déroulé ainsi : deux commandes d'installation étaient documentées, le modèle n'en a exécuté qu'une, et la facture est ressortie sans aucun contrôle français. Le mode dégradé existe et se signale en clair dans le rapport, mais ce n'est pas le fonctionnement attendu.
 
 Dans **l'interpréteur qu'utilise l'agent**, pas dans un venv de projet : c'est l'erreur d'installation la plus fréquente. En cas de doute, lancez le script sur n'importe quel fichier — s'il manque quelque chose, il renvoie `status: "missing_dependency"` et un champ `remede` contenant la commande exacte, construite avec le chemin de l'interpréteur qui vient d'échouer.
 
@@ -84,7 +85,7 @@ Par défaut c'est le jour courant. C'est le seul endroit du script où l'heure e
 python3 -m unittest discover -s tests -v
 ```
 
-118 tests. Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
+151 tests, répartis en deux suites (voir plus bas). Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
 
 Ils épinglent `--date-ref` : aucun ne dépend du jour où il tourne, sans quoi la suite changerait de résultat toute seule le 1er septembre 2026.
 

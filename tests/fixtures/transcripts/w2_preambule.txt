@@ -1,0 +1,67 @@
+Query: Utilise la skill facturx-reception sur 
+tests/fixtures/Facture_FR_BASICWL.pdf
+Initializing agent...
+────────────────────────────────────────
+
+
+╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
+I'll load the facturx-reception skill and check the target file in parallel.
+╰──────────────────────────────────────────────────────────────────────────────╯
+  ┊ 📚 preparing skill_view…
+  ┊ 💻 preparing terminal…
+  ┊ 📚 skill     finance:facturx-reception  0.0s
+  ┊ 💻 $         test -f /home/comall/dev/internal/tap-france/tests/fixtures/Facture_FR_BASICWL.pdf + 2 commands  1.4s
+
+╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
+The file path is relative to the tap-france repo. Since I'm in a Docker container at /workspace, let me locate both the file and the script.
+╰──────────────────────────────────────────────────────────────────────────────╯
+  ┊ 💻 preparing terminal…
+
+  ⏱ Timeout — denying command
+  ┊ 💻 $         find / -name "Facture_FR_BASICWL.pdf" 2>/dev/null + 2 commands  300.9s [BLOCKED: User denied this command. The user h...]
+  ┊ 💻 preparing terminal…
+  ┊ 💻 $         ls /workspace/ 2>/dev/null + 5 commands  4.3s [exit 1]
+
+╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
+The file is at /workspace/tests/fixtures/Facture_FR_BASICWL.pdf and the workspace has a scripts directory. Let me check the script location and install dependencies.
+╰──────────────────────────────────────────────────────────────────────────────╯
+  ┊ 💻 preparing terminal…
+  ┊ 💻 $         ls /workspace/scripts/ 2>/dev/null | grep -i factur + 1 command  42.5s
+
+╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
+Dependencies installed. Now let me find the script and run it.
+╰──────────────────────────────────────────────────────────────────────────────╯
+  ┊ 💻 preparing terminal…
+  ┊ 💻 $         ls /workspace/scripts/ + 1 command  0.3s
+  ┊ 💻 preparing terminal…
+  ┊ 💻 $         python3 /workspace/skills/finance/facturx-reception/scripts/facturx_extract.py /workspace/tests/fixtures/Facture_FR_BASICWL.pdf  0.6s
+
+╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
+Script executed successfully. Here is the report:
+
+Facture n° FA-2017-0010 de Au bon moulin, à Ma jolie boutique. 671,15 € TTC (624,90 € HT + 46,25 € de TVA), émise le 13/11/2017, échéance le 13/12/2017. Un acompte de 201,00 € a déjà été versé, il reste 470,15 € à payer. Paiement par virement (IBAN FR2012421242124212421242124).
+
+Facture valide au format Factur-X BASIC WL, mais non conforme aux règles françaises de la réforme (9 points : avertissements aujourd'hui, bloquants à partir du 1er septembre 2026).
+
+Il reste 11 jours pour les faire corriger, jusqu'au 1er septembre 2026.
+
+- La facture ne porte pas la mention obligatoire sur l'indemnité forfaitaire de 40 € pour frais de recouvrement, due entre professionnels en cas de retard de paiement. Elle doit figurer parmi les notes de la facture : à faire ajouter par votre fournisseur.
+- La facture ne porte pas la mention obligatoire sur les pénalités de retard de paiement (leur taux, ou le renvoi aux conditions générales de vente). Elle doit figurer parmi les notes de la facture : à faire ajouter par votre fournisseur.
+- La facture n'indique pas les conditions d'escompte en cas de paiement anticipé — ni, à défaut, qu'aucun escompte n'est accordé. L'une ou l'autre mention est obligatoire parmi les notes de la facture.
+- La facture ne précise pas son cas d'usage : le code qui dit s'il s'agit d'un dépôt direct, d'un mandat de facturation, d'une facture de solde, etc. La réforme française le rend obligatoire ; c'est le logiciel de facturation de votre fournisseur qui doit le renseigner.
+- Le SIREN du vendeur doit comporter exactement 9 chiffres ; celui de cette facture en compte 14 chiffres : « 99999999800010 ». C'est presque toujours le SIRET, long de 14 chiffres, saisi à la place du SIREN. À faire corriger par votre fournisseur.
+- L'adresse électronique de l'acheteur est absente. C'est l'identifiant auquel vous recevez vos factures électroniques — souvent votre SIREN, parfois une adresse dédiée — et la réforme l'exige pour acheminer la facture jusqu'à vous. Communiquez-le à votre fournisseur.
+- L'adresse électronique du vendeur est absente. C'est l'identifiant qui permet de reconnaître l'émetteur de la facture sur la plateforme, et la réforme l'exige. À faire renseigner par votre fournisseur dans son logiciel de facturation.
+- L'identifiant légal du vendeur est annoncé comme un SIREN mais en compte 14 chiffres au lieu de 9 : « 99999999800010 ». C'est presque toujours un SIRET, long de 14 chiffres, saisi à la place du SIREN. À faire corriger par l'émetteur de la facture.
+- L'identifiant légal de l'acheteur est annoncé comme un SIREN mais en compte 14 chiffres au lieu de 9 : « 78787878400035 ». C'est presque toujours un SIRET, long de 14 chiffres, saisi à la place du SIREN. À faire corriger par l'émetteur de la facture.
+
+Ces corrections sont à demander à votre fournisseur : elles concernent la facture qu'il a émise.
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+Resume this session with:
+  hermes --resume 20260821_120740_739af0
+
+Session:        20260821_120740_739af0
+Duration:       6m 53s
+Messages:       15 (1 user, 13 tool calls)
+⚠ Auxiliary title generation failed: Connection error.

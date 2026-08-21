@@ -184,21 +184,21 @@ Si tu ne peux pas cocher les quatre, relis le JSON plutôt que de compléter au 
 
 ## Installation
 
-Le socle, obligatoire — sans lui le script ne peut rien lire :
+Une seule commande, et la skill est complète :
 
 ```bash
-python3 -m pip install pypdf lxml
+python3 -m pip install pypdf lxml saxonche
 ```
 
-La validation contre les règles françaises de la réforme nécessite en plus :
+C'est celle-là qu'il faut exécuter. **N'en installe pas la moitié** : sans `saxonche`, le script tourne encore, mais il ne vérifie plus les règles françaises de la réforme — c'est-à-dire ce pour quoi la skill existe. Ce mode dégradé est décrit plus bas ; ce n'est pas une option de même rang.
 
-```bash
-python3 -m pip install saxonche
-```
+**Installe dans l'interpréteur que tu utilises réellement, pas dans un venv de projet.** C'est l'erreur la plus fréquente : les modules sont bien installés quelque part, mais pas là où le script tourne, et il échoue quand même. Si tu as un doute, demande au script lui-même — en cas de socle manquant il renvoie `status: missing_dependency` et un champ `remede` contenant la commande exacte, construite avec le chemin de l'interpréteur qui vient d'échouer. Exécute cette commande-là, telle quelle.
 
-**Installe-les dans l'interpréteur que tu utilises réellement, pas dans un venv de projet.** C'est l'erreur la plus fréquente : les modules sont bien installés quelque part, mais pas là où le script tourne, et il échoue quand même. Si tu as un doute, demande au script lui-même — en cas de socle manquant il renvoie `status: missing_dependency` et un champ `remede` contenant la commande exacte, construite avec le chemin de l'interpréteur qui vient d'échouer. Exécute cette commande-là, telle quelle.
+### Le mode dégradé, si `saxonche` manque quand même
 
-Les schematrons officiels sont en XSLT 2.0, que `lxml` ne sait pas exécuter. Sans `saxonche`, le script fonctionne normalement en `level: 1` et déclare les passes non exécutées — il n'échoue jamais pour cette raison, et ce n'est **pas** un `missing_dependency`.
+Les schematrons officiels sont en XSLT 2.0, que `lxml` ne sait pas exécuter. Sans `saxonche`, le script ne s'arrête pas : il passe en `level: 1`, déclare les passes non exécutées, et le rapport dit en clair que la conformité à la réforme n'a pas été vérifiée. Ce n'est **pas** un `missing_dependency`, et le script ne rend jamais d'erreur pour cette raison.
+
+Mais ce n'est pas le fonctionnement normal. Un run réel s'est déroulé ainsi — le modèle avait lu deux commandes d'installation et n'en avait exécuté qu'une — et la facture est ressortie sans qu'aucune règle française ne soit contrôlée. D'où la commande unique ci-dessus.
 
 ## Provenance des schémas
 
