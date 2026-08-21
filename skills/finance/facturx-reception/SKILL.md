@@ -92,7 +92,7 @@ Regarde `summary` en premier. Il contient tout ce qu'il faut pour la première p
 
 **Les règles françaises changent de statut le 1er septembre 2026.** Jusqu'à cette date elles sont des avertissements, à partir de cette date des points bloquants — c'est le calendrier officiel de la réforme, et le même jeu de règles échoue dans les deux cas. `summary.reforme_fr` te donne le régime en vigueur, la date de bascule et les jours restants.
 
-**Tant que la bascule n'est pas passée, le compte à rebours doit apparaître dans ta réponse.** C'est l'information la plus utile pour celui qui te lit : il a encore le temps de faire corriger sa facture. Dis « 9 points — avertissements aujourd'hui, bloquants à partir du 1er septembre 2026 », jamais « 9 points bloquants » tant qu'on est avant l'échéance.
+Le champ `rapport` porte déjà cette information, compte à rebours compris : tu n'as rien à en déduire.
 
 Le reste :
 
@@ -103,21 +103,17 @@ Le reste :
 
 ## Présenter le résultat
 
-Réponds en français simple, à quelqu'un qui ne connaît pas Factur-X.
+**Affiche le champ `rapport` tel quel.**
 
-**Structure :** le verdict d'abord, l'essentiel de la facture ensuite, les problèmes en dernier.
+C'est le texte français final, déjà assemblé par le script : la phrase de verdict, le compte à rebours si la bascule n'est pas passée, et une puce par constatation avec les montants. Tu le recopies intégralement, sans rien y ajouter, sans rien en retirer, sans le réordonner.
 
-Reprends le champ `message` de chaque check tel quel — il est déjà rédigé pour un non-technicien. **N'affiche jamais les identifiants de règle** (`BR-FR-10_BT-30`) ni le contenu de `raw` sauf si on te les demande explicitement : ils sont là pour la traçabilité, pas pour l'utilisateur.
+Tu ne le résumes pas, tu ne le reformules pas, tu ne le raccourcis pas. Ces règles étaient autrefois écrites ici en prose et le modèle les tenait mal ; elles sont maintenant appliquées par le script, où un test les vérifie. Ton travail se limite à afficher.
 
-Les montants se citent tels qu'ils apparaissent dans le JSON. Tu ne les recalcules pas, tu n'en additionnes pas, tu n'en convertis pas.
-
-**Une puce par constatation.** Jamais deux constatations dans la même puce. Jamais de constatation omise. Le nombre de puces est égal au nombre de points annoncé — si tu annonces 9, tu écris 9 puces. Interdiction d'écrire « dont », « notamment », « entre autres » ou toute formule annonçant une liste partielle.
-
-Compte tes puces avant d'envoyer. Deux constatations regroupées « parce qu'elles se ressemblent » en font disparaître une : sur une facture, deux identifiants légaux faux ne sont pas un problème, ce sont deux corrections à demander.
+Le reste du JSON — `invoice`, `checks`, `validation` — est là si on te pose une question précise ensuite. Pour la première réponse, `rapport` suffit et se suffit.
 
 **Les données se citent littéralement, la structure ne se cite jamais.**
 
-Les données — montants, taux, dates, numéro, parties, IBAN, et les `message` des `checks` — se reprennent **exactement** comme le JSON les fournit : jamais arrondies, jamais reformulées. Le vocabulaire de structure — noms de champs, `true` / `false` / `null`, syntaxe d'accès — ne sort jamais de ta réponse.
+Cette règle vaut pour tout ce que tu écris **autour** du rapport, et pour les questions de suite. Les données — montants, taux, dates, numéro, parties, IBAN, messages de règles — se reprennent **exactement** comme le JSON les fournit : jamais arrondies, jamais reformulées. Le vocabulaire de structure — noms de champs, `true` / `false` / `null`, syntaxe d'accès — ne sort jamais de ta réponse.
 
 | | |
 |---|---|
@@ -129,53 +125,35 @@ Les données — montants, taux, dates, numéro, parties, IBAN, et les `message`
 | ✅ | « La conformité aux règles françaises n'a pas pu être vérifiée. » |
 | ❌ | « Le champ est à `null`. » |
 
-Autrement dit : le JSON est ta **source**, jamais ton **vocabulaire**. Tu en recopies les valeurs au caractère près, et tu n'en montres jamais la forme.
+Autrement dit : le JSON est ta **source**, jamais ton **vocabulaire**.
 
-**Tu ne racontes pas comment tu as obtenu le résultat.** Pas de mention du script, de son code de sortie, des passes qui se sont exécutées, du JSON ni de son existence. Ne propose pas non plus « d'autres champs disponibles si besoin » : celui qui te lit a demandé où en est sa facture, pas un compte rendu d'exécution. Tu réponds sur la facture, point.
+**Tu ne racontes pas comment tu as obtenu le résultat.** Pas de mention du script, de son code de sortie, des passes qui se sont exécutées, du JSON ni de son existence. Ne propose pas non plus « d'autres champs disponibles si besoin » : celui qui te lit a demandé où en est sa facture, pas un compte rendu d'exécution.
 
 La seule exception est celle de la règle absolue : si tu **n'as pas pu** exécuter le script, tu le dis franchement et tu expliques ce qui bloque. Un échec se raconte, une réussite ne se raconte pas.
 
-Exemple de bonne réponse. Les puces sont des copies **exactes** du champ `message` des `checks` — mot pour mot, ponctuation comprise. Ne les résume pas, ne les raccourcis pas, ne les reformule pas : c'est ce que fait cet exemple, et c'est ce que tu fais.
+### À quoi ressemble un rapport
 
-> Facture n° FA-2017-0010 de Au bon moulin, à Ma jolie boutique. 671,15 € TTC (624,90 € HT + 46,25 € de TVA), émise le 13/11/2017, échéance le 13/12/2017. Un acompte de 201,00 € a déjà été versé, il reste 470,15 € à payer.
+Sortie réelle du champ `rapport` sur `tests/fixtures/Facture_FR_BASICWL.pdf`, le 21/08/2026. C'est exactement ce que tu affiches — rien de plus.
+
+> Facture n° FA-2017-0010 de Au bon moulin, à Ma jolie boutique. 671,15 € TTC (624,90 € HT + 46,25 € de TVA), émise le 13/11/2017, échéance le 13/12/2017. Un acompte de 201,00 € a déjà été versé, il reste 470,15 € à payer. Paiement par virement (IBAN FR2012421242124212421242124).
 >
-> Le fichier est un Factur-X valide au profil BASIC WL. **En revanche, il ne respecte pas encore les règles françaises de la réforme.** 9 points — des avertissements aujourd'hui, qui deviendront bloquants le 1er septembre 2026. Il reste 11 jours pour les faire corriger :
+> Facture valide au format Factur-X BASIC WL, mais non conforme aux règles françaises de la réforme (9 points : avertissements aujourd'hui, bloquants à partir du 1er septembre 2026).
+>
+> Il reste 11 jours pour les faire corriger, jusqu'au 1er septembre 2026.
 >
 > - La facture ne porte pas la mention obligatoire sur l'indemnité forfaitaire de 40 € pour frais de recouvrement, due entre professionnels en cas de retard de paiement. Elle doit figurer parmi les notes de la facture : à faire ajouter par votre fournisseur.
->
 > - La facture ne porte pas la mention obligatoire sur les pénalités de retard de paiement (leur taux, ou le renvoi aux conditions générales de vente). Elle doit figurer parmi les notes de la facture : à faire ajouter par votre fournisseur.
->
 > - La facture n'indique pas les conditions d'escompte en cas de paiement anticipé — ni, à défaut, qu'aucun escompte n'est accordé. L'une ou l'autre mention est obligatoire parmi les notes de la facture.
->
 > - La facture ne précise pas son cas d'usage : le code qui dit s'il s'agit d'un dépôt direct, d'un mandat de facturation, d'une facture de solde, etc. La réforme française le rend obligatoire ; c'est le logiciel de facturation de votre fournisseur qui doit le renseigner.
->
 > - Le SIREN du vendeur doit comporter exactement 9 chiffres ; celui de cette facture en compte 14 chiffres : « 99999999800010 ». C'est presque toujours le SIRET, long de 14 chiffres, saisi à la place du SIREN. À faire corriger par votre fournisseur.
->
 > - L'adresse électronique de l'acheteur est absente. C'est l'identifiant auquel vous recevez vos factures électroniques — souvent votre SIREN, parfois une adresse dédiée — et la réforme l'exige pour acheminer la facture jusqu'à vous. Communiquez-le à votre fournisseur.
->
 > - L'adresse électronique du vendeur est absente. C'est l'identifiant qui permet de reconnaître l'émetteur de la facture sur la plateforme, et la réforme l'exige. À faire renseigner par votre fournisseur dans son logiciel de facturation.
->
 > - L'identifiant légal du vendeur est annoncé comme un SIREN mais en compte 14 chiffres au lieu de 9 : « 99999999800010 ». C'est presque toujours un SIRET, long de 14 chiffres, saisi à la place du SIREN. À faire corriger par l'émetteur de la facture.
->
 > - L'identifiant légal de l'acheteur est annoncé comme un SIREN mais en compte 14 chiffres au lieu de 9 : « 78787878400035 ». C'est presque toujours un SIRET, long de 14 chiffres, saisi à la place du SIREN. À faire corriger par l'émetteur de la facture.
 >
 > Ces corrections sont à demander à votre fournisseur : elles concernent la facture qu'il a émise.
 
-Cet exemple est reproductible : c'est la sortie réelle du script sur `tests/fixtures/Facture_FR_BASICWL.pdf`. Les valeurs qu'il cite viennent de cette facture-là — celles de la tienne seront différentes.
-
-**Cas particuliers**
-
-| Situation | Ce que tu dis |
-|---|---|
-| `status: unstructured` | Le PDF ne contient pas de facture électronique structurée — c'est un PDF classique. Propose `ocr-and-documents` pour une lecture approximative, en précisant qu'aucune validation de conformité n'est alors possible. |
-| `status: unreadable` | Le fichier n'a pas pu être ouvert. Demande à vérifier le chemin ou le fichier. |
-| `status: invalid_xml` | Le XML Factur-X est bien là, mais illisible : **aucune donnée n'est exploitable**. Le fichier est probablement corrompu ou mal généré par le logiciel de l'émetteur ; c'est à lui de le signaler et de le réémettre. Dis exactement cela et rien de plus. **N'improvise rien** : pas de montant, pas de nom, pas de verdict de conformité. Aucune valeur ne t'a été fournie, et tu ne peux pas en produire une seule. C'est le cas où la tentation de compenser est la plus forte — n'y cède pas. |
-| `status: missing_dependency` | Le script n'a pas pu se lancer : une bibliothèque Python lui manque. Le fichier n'a pas été lu du tout. Donne à l'utilisateur la commande exacte du champ `remede` — elle vise le bon interpréteur — puis propose de relancer. Ne conclus rien sur la facture. |
-| `status: file_not_visible` | Le chemin est probablement bon : c'est ton bac à sable qui n'a pas accès au dossier de l'utilisateur. **Ne lui dis pas de vérifier son chemin**, il y perdrait son temps. Donne la manipulation du champ `remede` — configuration Hermes puis purge des conteneurs — et précise que les deux étapes sont nécessaires. Ne conclus rien sur la facture. |
-| `level: 1` | Tu as extrait et validé la structure, mais **pas** la conformité à la réforme française. Indique que `saxonche` permet cette vérification, sans insister. |
-| `profil_fnfe` en `not_applied` pour MINIMUM | Normal, et à expliquer : aucun validateur officiel n'existe pour ce profil. Ce n'est ni un échec ni une lacune de l'outil. |
-| `detection.method: "fallback"` | Le XML a été trouvé par un chemin non standard. Le résultat reste exploitable, mais signale-le : le fichier de l'émetteur s'écarte de la norme. |
-| 0 bloquant, alertes seulement | Dis-le clairement : la facture est conforme, les alertes sont des recommandations. |
+Les valeurs citées sont celles de cette facture-là ; celles de la tienne seront différentes.
 
 ## Pièges
 

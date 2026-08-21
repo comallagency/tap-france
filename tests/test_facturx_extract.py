@@ -600,6 +600,171 @@ class TestFichierHorsMontage(ContractCase):
         self.assertEqual(result["status"], "unreadable")
 
 
+class TestRapportDeduplication(ContractCase):
+    """Une constatation, une puce — même quand deux passes la confirment.
+
+    `checks[]` garde les deux occurrences : la confirmation indépendante d'une
+    couche par une autre est une propriété qu'on veut conserver."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result, _ = cls.result_for(TOTAUX_FAUX, "--json-only",
+                                       "--date-ref", DATE_APRES)
+        cls.puces = [l[2:] for l in cls.result["rapport"].splitlines()
+                     if l.startswith("- ")]
+
+    def test_deux_checks_une_seule_puce(self):
+        """Le total TTC faussé d'un euro est constaté par le validateur de
+        profil ET par la passe coherence."""
+        for regle in ("BR-CO-15", "BR-CO-16"):
+            couches = {c["layer"] for c in self.result["checks"]
+                       if c["id"] == regle}
+            self.assertEqual(couches, {"profil_fnfe", "coherence"}, regle)
+            self.assertEqual(len([c for c in self.result["checks"]
+                                  if c["id"] == regle]), 2, regle)
+
+    def test_la_puce_retenue_est_la_plus_precise(self):
+        """Celle qui nomme les montants, pas l'énoncé général de la règle."""
+        ttc = [p for p in self.puces if p.startswith("Le total TTC déclaré")]
+        self.assertEqual(len(ttc), 1)
+        self.assertIn("670,15 €", ttc[0])
+        self.assertEqual([p for p in self.puces
+                          if p.startswith("Le total TTC de la facture")], [])
+
+    def test_les_deux_identifiants_legaux_restent_distincts(self):
+        """Même règle, emplacements qui ne se contiennent pas : deux
+        corrections à demander, donc deux puces."""
+        legaux = [p for p in self.puces if "identifiant légal" in p]
+        self.assertEqual(len(legaux), 2)
+        self.assertIn("99999999800010", legaux[0])
+        self.assertIn("78787878400035", legaux[1])
+
+    def test_compte_des_puces(self):
+        constatations = [c for c in self.result["checks"]
+                         if c["severity"] in ("bloquant", "alerte")]
+        self.assertEqual(len(constatations), 13)
+        self.assertEqual(len(self.puces), 11)
+
+
+class TestRapportMontantsFrancais(ContractCase):
+    """Dans le rapport seulement, les montants se lisent à la française."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result, _ = cls.result_for(TOTAUX_FAUX, "--json-only",
+                                       "--date-ref", DATE_APRES)
+        cls.rapport = cls.result["rapport"]
+
+    def test_montants_des_messages_convertis(self):
+        self.assertIn("Le total TTC déclaré (670,15 €) ne correspond pas au "
+                      "total HT (624,90 €) augmenté de la TVA (46,25 €), "
+                      "soit 671,15 €.", self.rapport)
+
+    def test_checks_gardent_la_forme_brute(self):
+        """§3 — le JSON reprend les montants tels quels ; c'est le rapport,
+        et lui seul, qui les met en forme."""
+        brut = next(c for c in self.result["checks"]
+                    if c["id"] == "BR-CO-15" and c["layer"] == "coherence")
+        self.assertIn("(670.15)", brut["message"])
+        self.assertNotIn("€", brut["message"])
+
+    def test_valeurs_citees_restent_verbatim(self):
+        """Un SIREN ou un taux figure entre guillemets parce que son écriture
+        est en cause : le reformater effacerait la faute signalée."""
+        self.assertIn("« 99999999800010 »", self.rapport)
+        self.assertIn("« 78787878400035 »", self.rapport)
+        for interdit in ("« 99 999 998,00", "« 999999998,00"):
+            self.assertNotIn(interdit, self.rapport)
+
+    def test_un_taux_ne_recoit_pas_le_symbole_monetaire(self):
+        import re as _re
+        self.assertIsNone(_re.search(r"€\s*%", self.rapport))
+
+    def test_aucun_montant_a_point_decimal_dans_le_rapport(self):
+        """Hors valeurs citées, aucun « 670.15 » ne doit subsister."""
+        import re as _re
+        hors_cite = _re.sub(r"«[^»]*»|\"[^\"]*\"", "", self.rapport)
+        self.assertEqual(_re.findall(r"(?<![\d,.])\d+\.\d{2}(?!\d)", hors_cite), [])
+
+
+class TestRapport(ContractCase):
+    """Le champ `rapport` est le texte que le modèle affiche tel quel.
+
+    Tout ce que le SKILL.md demandait autrefois en prose — une puce par
+    constatation, messages repris mot pour mot, compte à rebours avant la
+    bascule — est vérifié ici, où un test le garde plutôt qu'un run."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result, _ = cls.result_for(BASICWL, "--json-only",
+                                       "--date-ref", DATE_AVANT)
+        cls.apres, _ = cls.result_for(BASICWL, "--json-only",
+                                      "--date-ref", DATE_APRES)
+        cls.rapport = cls.result["rapport"]
+
+    def test_present_sur_tous_les_statuts(self):
+        """Aucune sortie du script ne doit être dépourvue de rapport : sans lui
+        le modèle n'aurait rien à afficher."""
+        cas = [(MINIMUM, None), (EN16931, None), (SANS_XML, None),
+               (PAS_UN_PDF, None), (XML_CASSE, None), (REPLI, None),
+               (TOTAUX_FAUX, None), (BASICWL, sans(SANS_SOCLE))]
+        for fixture, env in cas:
+            result, _ = self.result_for(fixture, "--json-only", env=env)
+            self.assertIn("rapport", result, os.path.basename(fixture))
+            self.assertTrue(result["rapport"].strip(), os.path.basename(fixture))
+
+    def test_commence_par_la_facture_puis_le_verdict(self):
+        blocs = self.rapport.split("\n\n")
+        self.assertTrue(blocs[0].startswith("Facture n° FA-2017-0010"))
+        self.assertEqual(blocs[1], self.result["summary"]["verdict"])
+
+    def test_montants_au_centime_en_francais(self):
+        """Le point décimal devient une virgule ; aucun chiffre n'est perdu."""
+        for attendu in ("671,15 €", "624,90 €", "46,25 €", "201,00 €", "470,15 €"):
+            self.assertIn(attendu, self.rapport)
+        self.assertIn("13/11/2017", self.rapport)
+        self.assertIn("FR2012421242124212421242124", self.rapport)
+
+    def test_une_puce_par_constatation_dans_l_ordre(self):
+        constatations = [c for c in self.result["checks"]
+                         if c["severity"] in ("bloquant", "alerte")]
+        puces = [l[2:] for l in self.rapport.splitlines() if l.startswith("- ")]
+        self.assertEqual(len(puces), len(constatations))
+        self.assertEqual(puces, [c["message"] for c in constatations])
+
+    def test_aucune_formule_de_liste_partielle(self):
+        for interdit in ("dont :", "notamment", "entre autres", "…"):
+            self.assertNotIn(interdit, self.rapport, interdit)
+
+    def test_compte_a_rebours_avant_la_bascule_seulement(self):
+        self.assertIn("Il reste 11 jours pour les faire corriger, "
+                      "jusqu'au 1er septembre 2026.", self.rapport)
+        self.assertNotIn("Il reste", self.apres["rapport"])
+
+    def test_aucun_vocabulaire_de_structure(self):
+        for interdit in ("conforme_reforme_fr", "summary.", "totals.", "checks[",
+                         " null", " true", " false", "JSON"):
+            self.assertNotIn(interdit, self.rapport, interdit)
+
+    def test_aucun_identifiant_de_regle_ni_raw(self):
+        for check in self.result["checks"]:
+            if check["id"]:
+                self.assertNotIn(check["id"], self.rapport, check["id"])
+
+    def test_statut_terminal_se_limite_au_verdict_et_au_remede(self):
+        """Une seule phrase suffit : y ajouter des puces la répéterait."""
+        result, _ = self.result_for(PAS_UN_PDF, "--json-only")
+        self.assertEqual(result["rapport"], result["summary"]["verdict"])
+        result, _ = self.result_for(BASICWL, "--json-only", env=sans(SANS_SOCLE))
+        self.assertIn(result["remede"], result["rapport"])
+        self.assertNotIn("\n- ", result["rapport"])
+
+    def test_facture_sans_constatation_ne_porte_pas_de_puce(self):
+        result, _ = self.result_for(MINIMUM, "--json-only")
+        self.assertNotIn("\n- ", result["rapport"])
+        self.assertIn("Facture n° FA-2017-0010", result["rapport"])
+
+
 class TestRegimeDate(ContractCase):
     """§7 — la sévérité des règles françaises vient de la date d'application
     inscrite dans les en-têtes des deux schematrons jumeaux, pas de nous.

@@ -1640,6 +1640,218 @@ def build_verdict(status: str, profile_label, validation: dict,
 # Programme principal
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# `rapport` — le texte français final, assemblé par le script
+# --------------------------------------------------------------------------
+#
+# Le modèle n'a plus qu'à l'afficher tel quel. Tout ce qui lui était demandé
+# en prose — une puce par constatation, messages repris mot pour mot, compte à
+# rebours avant la bascule — est fait ici, où c'est vérifiable par un test
+# plutôt que par un run.
+
+def date_courte(iso: str | None) -> str | None:
+    """« 2017-11-13 » → « 13/11/2017 ». Rendu, pas transformation."""
+    if not iso:
+        return None
+    parties = iso.split("-")
+    if len(parties) != 3:
+        return iso
+    return "%s/%s/%s" % (parties[2], parties[1], parties[0])
+
+
+def montant_fr(valeur: str | None, devise: str | None) -> str | None:
+    """« 671.15 » → « 671,15 € ». Aucun chiffre n'est ajouté ni retiré :
+    seule la virgule décimale française remplace le point."""
+    if valeur is None:
+        return None
+    texte = valeur.replace(".", ",")
+    symbole = {"EUR": "€"}.get((devise or "").upper(), devise or "")
+    return ("%s %s" % (texte, symbole)).strip()
+
+
+def phrase_facture(invoice: dict) -> str | None:
+    """En-tête : de quelle facture on parle, et pour quels montants."""
+    devise = invoice["currency"]
+    totaux = invoice["totals"]
+    titre = "Facture" if invoice["type_code"] == "380" else (
+        invoice["type_label"] or "Document")
+
+    tete = titre
+    if invoice["number"]:
+        tete += " n° %s" % invoice["number"]
+    if invoice["seller"]["name"]:
+        tete += " de %s" % invoice["seller"]["name"]
+    if invoice["buyer"]["name"]:
+        tete += ", à %s" % invoice["buyer"]["name"]
+
+    morceaux = [tete + "."]
+
+    gross = montant_fr(totaux["gross"], devise)
+    net = montant_fr(totaux["net"], devise)
+    vat = montant_fr(totaux["vat"], devise)
+    if gross and net and vat:
+        somme = "%s TTC (%s HT + %s de TVA)" % (gross, net, vat)
+    elif gross:
+        somme = "%s TTC" % gross
+    elif net:
+        somme = "%s HT" % net
+    else:
+        somme = None
+
+    dates = []
+    if invoice["issue_date"]:
+        dates.append("émise le %s" % date_courte(invoice["issue_date"]))
+    if invoice["due_date"]:
+        dates.append("échéance le %s" % date_courte(invoice["due_date"]))
+    if somme or dates:
+        morceaux.append(", ".join([m for m in [somme] + dates if m]) + ".")
+
+    prepaid = to_decimal(totaux["prepaid"])
+    if prepaid is not None and prepaid != 0:
+        reste = montant_fr(totaux["due"], devise)
+        phrase = "Un acompte de %s a déjà été versé" % montant_fr(
+            totaux["prepaid"], devise)
+        morceaux.append(phrase + (", il reste %s à payer." % reste if reste
+                                  else "."))
+    elif totaux["due"] and totaux["due"] != totaux["gross"]:
+        morceaux.append("Net à payer : %s." % montant_fr(totaux["due"], devise))
+
+    paiement = invoice["payment"]
+    if paiement["means_label"] or paiement["iban"]:
+        detail = "Paiement"
+        if paiement["means_label"]:
+            detail += " par %s" % paiement["means_label"].lower()
+        if paiement["iban"]:
+            detail += " (IBAN %s)" % paiement["iban"]
+        morceaux.append(detail + ".")
+
+    return " ".join(morceaux) if len(morceaux) > 1 or invoice["number"] else None
+
+
+# Un montant : deux décimales exactes, ni précédé ni suivi d'un chiffre. Le
+# second garde-fou écarte les numéros de version du genre « 1.09.2 ».
+MONTANT_BRUT = re.compile(r"(?<![\d,.])(\d+)\.(\d{2})(?!\d)(?!\.\d)")
+SPAN_CITE = re.compile(r"«[^»]*»|\"[^\"]*\"")
+
+
+def _rendre(match, devise: str | None) -> str:
+    """Virgule décimale toujours ; symbole monétaire seulement si c'est un
+    montant. Un nombre suivi de « % » est un taux, pas une somme."""
+    valeur = "%s,%s" % (match.group(1), match.group(2))
+    if match.group(0) != match.group(0).rstrip() or TAUX_SUIVANT.match(
+            match.string, match.end()):
+        return valeur
+    return montant_fr("%s.%s" % (match.group(1), match.group(2)), devise)
+
+
+TAUX_SUIVANT = re.compile(r"\s*%")
+
+
+def montants_en_francais(texte: str, devise: str | None) -> str:
+    """Rend à la française les montants d'un message, pour le seul rapport.
+
+    Ce qui est cité entre guillemets est laissé intact : un SIREN ou un taux de
+    TVA y figure précisément parce que **son écriture** est en cause. Le
+    reformater effacerait la faute qu'on signale.
+    """
+    morceaux = []
+    position = 0
+    for cite in SPAN_CITE.finditer(texte):
+        morceaux.append(MONTANT_BRUT.sub(
+            lambda m: _rendre(m, devise), texte[position:cite.start()]))
+        morceaux.append(cite.group(0))
+        position = cite.end()
+    morceaux.append(MONTANT_BRUT.sub(lambda m: _rendre(m, devise), texte[position:]))
+    return "".join(morceaux)
+
+
+def meme_constatation(a: dict, b: dict) -> bool:
+    """Deux passes ont-elles constaté la même chose ?
+
+    Même identifiant de règle, et un emplacement qui contient l'autre : le
+    validateur de profil signale l'écart sur le bloc des totaux, la passe
+    `coherence` sur le montant précis — c'est un seul problème vu de deux
+    hauteurs.
+
+    Deux emplacements qui divergent restent deux constatations : les
+    identifiants légaux du vendeur et de l'acheteur portent la même règle, ce
+    sont bien deux corrections à demander.
+    """
+    if a["id"] is None or a["id"] != b["id"]:
+        return False
+    x, y = a["location"], b["location"]
+    if x is None or y is None:
+        return x == y
+    return x == y or x.startswith(y + "/") or y.startswith(x + "/")
+
+
+def dedupliquer(checks: list[dict]) -> list[dict]:
+    """Une constatation, une puce — en gardant la plus précise des deux.
+
+    `checks[]` conserve toutes les occurrences : la confirmation indépendante
+    d'une couche par une autre est une propriété qu'on veut garder.
+    """
+    retenus: list[dict] = []
+    for check in checks:
+        for index, garde in enumerate(retenus):
+            if meme_constatation(check, garde):
+                # Le plus précis l'emporte : son message nomme la valeur fautive.
+                if len(check["location"] or "") > len(garde["location"] or ""):
+                    retenus[index] = check
+                break
+        else:
+            retenus.append(check)
+    return retenus
+
+
+def build_rapport(result: dict) -> str:
+    """Texte prêt à afficher, assemblé à partir du seul JSON déjà produit."""
+    summary = result["summary"]
+    blocs: list[str] = []
+
+    invoice = result.get("invoice")
+    if invoice:
+        entete = phrase_facture(invoice)
+        if entete:
+            blocs.append(entete)
+
+    blocs.append(summary["verdict"])
+
+    reforme = summary.get("reforme_fr") or {}
+    reste = reforme.get("jours_avant_bascule")
+    if reforme.get("regime") == "avertissement" and reste:
+        blocs.append(
+            "Il reste %d jour%s pour les faire corriger, jusqu'au %s."
+            % (reste, "s" if reste > 1 else "",
+               date_francaise(reforme.get("bascule"))))
+
+    # Sur un statut terminal — fichier illisible, hors montage, socle absent,
+    # XML non analysable — le verdict et le remède disent déjà tout. Y ajouter
+    # des puces ne ferait que répéter la même phrase sous une autre forme.
+    constatations = dedupliquer(
+        [c for c in result["checks"]
+         if c["severity"] in ("bloquant", "alerte")]) if invoice else []
+    if constatations:
+        devise = (invoice or {}).get("currency")
+        blocs.append("\n".join(
+            "- %s" % montants_en_francais(c["message"], devise)
+            for c in constatations))
+        if any(c["layer"] in ("regles_fr_ctc", "profil_fnfe", "xsd")
+               for c in constatations):
+            blocs.append("Ces corrections sont à demander à votre fournisseur : "
+                         "elles concernent la facture qu'il a émise.")
+
+    remede = result.get("remede")
+    if remede:
+        blocs.append(remede)
+
+    infos = [c for c in result["checks"] if c["severity"] == "info"] if invoice else []
+    if infos:
+        blocs.append("À noter : " + " ".join(c["message"] for c in infos))
+
+    return "\n\n".join(blocs)
+
+
 def source_block(path: str) -> dict:
     block = {"file": os.path.basename(path), "sha256": None, "size_bytes": None}
     try:
@@ -2001,6 +2213,17 @@ def build(path: str, do_validate: bool, date_ref: str) -> tuple[dict, int]:
     return base, 0
 
 
+def emettre(result: dict, code: int) -> int:
+    """Ajoute le rapport, écrit l'unique objet JSON, rend le code de sortie.
+
+    Point de passage obligé : aucune sortie du script ne doit être dépourvue
+    de `rapport`, sinon le modèle n'aurait rien à afficher.
+    """
+    result["rapport"] = build_rapport(result)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return code
+
+
 def date_ref_valide(valeur: str) -> str:
     from datetime import date
     try:
@@ -2049,9 +2272,7 @@ def main(argv=None) -> int:
             except Exception:
                 manifest = {"fnfe_pack": None, "pack_date": None}
             sys.stderr = real_stderr
-            print(json.dumps(missing_dependency_result(args.pdf, manquant, manifest),
-                             indent=2, ensure_ascii=False))
-            return 1
+            return emettre(missing_dependency_result(args.pdf, manquant, manifest), 1)
 
         result, code = build(args.pdf, do_validate=not args.no_validate,
                              date_ref=date_ref)
@@ -2083,8 +2304,7 @@ def main(argv=None) -> int:
     finally:
         sys.stderr = real_stderr
 
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    return code
+    return emettre(result, code)
 
 
 if __name__ == "__main__":

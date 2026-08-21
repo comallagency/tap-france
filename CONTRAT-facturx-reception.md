@@ -265,6 +265,16 @@ La date d'appréciation est un **paramètre**, `--date-ref AAAA-MM-JJ`, dont le 
 
 > **Ce qui est daté, c'est la sévérité — pas le fait.** Une facture qui échoue aux règles françaises y échoue aujourd'hui comme en octobre. Voir §8.
 
+### Une même constatation peut apparaître deux fois
+
+Les passes ne sont pas étanches : le validateur officiel de profil embarque les règles `BR-CO-*`, que la passe `coherence` recalcule de son côté. Un total TTC faux produit donc **deux `checks`**, un par couche.
+
+C'est voulu et `checks[]` les conserve tous les deux. Deux couches indépendantes qui concluent pareil, c'est une confirmation ; l'une qui conclurait seule serait un signal à examiner. Cette propriété a déjà servi — elle a validé la passe `coherence` contre le validateur officiel sur une facture délibérément faussée.
+
+Les deux occurrences ne portent pas le même `location` : le validateur de profil désigne le bloc des totaux, `coherence` le montant précis. C'est le même problème vu de deux hauteurs, et c'est ce qui permet de les rapprocher — voir §8 bis.
+
+Les montants restent dans `message` **sous leur forme brute**, telle que le XML les porte (§3). La mise en forme française appartient au seul champ `rapport`.
+
 ---
 
 ## 8. `summary` — ce que le modèle lit en premier
@@ -294,6 +304,66 @@ La date d'appréciation est un **paramètre**, `--date-ref AAAA-MM-JJ`, dont le 
 `reforme_fr` porte le régime en vigueur à la date d'appréciation, la date de bascule et le nombre de jours restants — `null` une fois la bascule passée. C'est ce qui permet à la réponse de dire : « 9 points — avertissements aujourd'hui, bloquants à partir du 1er septembre 2026. »
 
 Le compte cité par `verdict` est celui des **règles françaises en échec**, pas celui des points bloquants : avant la bascule, ces mêmes constatations sont des avertissements, et « 0 point bloquant » serait absurde.
+
+> **À l'intention des intégrateurs.** En régime d'avertissement, `summary.bloquants` vaut `0` alors même que des règles françaises échouent. Ne jamais lire ce champ seul : il ne dit pas « tout va bien », il dit « rien n'est bloquant à cette date ». Toujours le lire avec `summary.reforme_fr.regime` et `summary.conforme_reforme_fr`. Un tableau de bord qui filtrerait sur `bloquants > 0` afficherait zéro anomalie jusqu'au 31 août 2026, puis les découvrirait toutes le 1er septembre.
+
+---
+
+## 8 bis. `rapport` — le texte que le modèle affiche
+
+Le script assemble lui-même la réponse française finale. Le SKILL.md se réduit alors à une consigne : **affiche le champ `rapport` tel quel**.
+
+```
+Facture n° FA-2017-0010 de Au bon moulin, à Ma jolie boutique. 671,15 € TTC
+(624,90 € HT + 46,25 € de TVA), émise le 13/11/2017, échéance le 13/12/2017.
+Un acompte de 201,00 € a déjà été versé, il reste 470,15 € à payer.
+
+Facture valide au format Factur-X BASIC WL, mais non conforme aux règles
+françaises de la réforme (9 points : avertissements aujourd'hui, bloquants à
+partir du 1er septembre 2026).
+
+Il reste 11 jours pour les faire corriger, jusqu'au 1er septembre 2026.
+
+- …message du premier check, mot pour mot…
+- …un par constatation, dans l'ordre, sans regroupement ni omission…
+
+Ces corrections sont à demander à votre fournisseur : elles concernent la
+facture qu'il a émise.
+```
+
+Composition, dans cet ordre, chaque bloc étant omis s'il est sans objet :
+
+1. **En-tête de facture** — numéro, parties, montants, dates, acompte, moyen de paiement. Les montants y sont rendus à la française (`671.15` → `671,15 €`) : la virgule décimale remplace le point, aucun chiffre n'est ajouté ni retiré.
+2. **Verdict** — `summary.verdict`, sans retouche.
+3. **Compte à rebours** — seulement en régime d'avertissement, tant que `jours_avant_bascule` n'est pas `null`.
+4. **Une puce par constatation** `bloquant` ou `alerte`, dans l'ordre de `checks[]`, `message` repris à l'identique.
+5. **Phrase de clôture** quand les constatations relèvent de l'émetteur.
+6. **`remede`** quand il y en a un.
+7. **`À noter :`** pour les constatations `info`.
+
+### Pourquoi le script et non le modèle
+
+Ces règles ont d'abord été écrites en prose dans le SKILL.md, et **le modèle les tenait mal** : sur trois runs à consignes identiques, les neuf messages officiels étaient repris 9 fois, puis 1, puis 6. Fondre deux constatations en une puce fait disparaître une correction à demander ; annoncer « 9 points » et n'en lister que cinq laisse l'utilisateur croire qu'il a tout vu.
+
+Déplacer l'assemblage dans le script transforme une consigne comportementale — invérifiable autrement que par un run, et variable d'un run à l'autre — en une propriété **testée**. C'est le principe fondateur du §1 appliqué jusqu'au bout : le script produit des faits, y compris la phrase qui les raconte.
+
+### Déduplication
+
+Une constatation, une puce. Deux `checks` désignent la même constatation lorsqu'ils portent **le même identifiant de règle** et que **l'un des deux `location` contient l'autre**. Le rapport n'en garde alors qu'un : le plus précis, c'est-à-dire celui dont le chemin est le plus profond, parce que son message nomme la valeur fautive plutôt que d'énoncer la règle en général.
+
+Deux emplacements qui ne se contiennent pas restent **deux** constatations. Les identifiants légaux du vendeur et de l'acheteur relèvent de la même règle `BR-FR-32-LEGALID` ; ce sont deux corrections à demander, et les fondre en ferait disparaître une.
+
+`checks[]` n'est jamais dédupliqué : la règle ne s'applique qu'au rapport.
+
+### Montants
+
+Dans le rapport, et **seulement** dans le rapport, les montants se lisent à la française : la virgule décimale remplace le point, le symbole monétaire est ajouté. `671.15` devient `671,15 €`. Aucun chiffre n'est ajouté ni retiré — c'est un rendu, jamais un arrondi. Un nombre suivi de `%` est un taux : il reçoit la virgule, pas le symbole monétaire.
+
+> **Ce qui est cité entre guillemets est laissé intact.** Un SIREN, un taux de TVA refusé y figurent précisément parce que **leur écriture** est en cause. `« 99999999800010 »` et `« 19.00 »` restent tels quels : les reformater effacerait la faute qu'on signale.
+
+> **Sur un statut terminal, `rapport` se limite au verdict et au remède.** Fichier illisible, hors montage, socle absent, XML non analysable : la phrase de verdict dit déjà tout, et y ajouter des puces ne ferait que la répéter.
+
+`rapport` est présent sur **toutes** les sorties, quel que soit le statut : sans lui, le modèle n'aurait rien à afficher.
 
 ---
 

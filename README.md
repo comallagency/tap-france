@@ -12,6 +12,8 @@ Skills Hermes pour la conformité réglementaire française. Une seule skill pou
 
 Le contrat prime sur le code : toute divergence entre les deux est un bug du code.
 
+Le script assemble lui-même la réponse française finale, dans un champ `rapport` que le modèle affiche tel quel. Ce qui relevait de consignes en prose — une puce par constatation, messages officiels repris mot pour mot, compte à rebours avant l'échéance — est ainsi devenu une propriété testée plutôt qu'un comportement espéré.
+
 ## Installation dans Hermes
 
 ```bash
@@ -81,7 +83,7 @@ Par défaut c'est le jour courant. C'est le seul endroit du script où l'heure e
 python3 -m unittest discover -s tests -v
 ```
 
-99 tests. Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
+118 tests. Ils invoquent le script en sous-processus, comme le fait l'agent : stdout, stderr et code de sortie sont vérifiés au même titre que le contenu du JSON. Chaque test cite la section du contrat qu'il garde.
 
 Ils épinglent `--date-ref` : aucun ne dépend du jour où il tourne, sans quoi la suite changerait de résultat toute seule le 1er septembre 2026.
 
