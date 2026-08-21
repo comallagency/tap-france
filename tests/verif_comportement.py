@@ -56,7 +56,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCRIPT = os.path.join(ROOT, "skills", "finance", "facturx-reception", "scripts",
+SCRIPT = os.path.join(ROOT, "skills", "facturx-reception", "scripts",
                       "facturx_extract.py")
 FIXTURE_DEFAUT = os.path.join(ROOT, "tests", "fixtures", "Facture_FR_BASICWL.pdf")
 

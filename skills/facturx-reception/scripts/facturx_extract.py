@@ -1500,9 +1500,9 @@ def validate(xml_bytes: bytes, xml_text: str, root, invoice: dict, profile_label
             "severity": "info",
             "layer": "validation",
             "message": "saxonche n'est pas installé : la validation par les schematrons "
-                       "officiels FNFE n'a pas pu être exécutée. Installer saxonche "
-                       "(pip install saxonche) pour obtenir la validation complète de "
-                       "la réforme française.",
+                       "officiels FNFE n'a pas pu être exécutée. Reprendre la commande "
+                       "d'installation de la skill, qui l'inclut, pour obtenir la "
+                       "validation complète de la réforme française.",
             "location": None,
             "raw": None,
         })
@@ -1572,6 +1572,11 @@ def profile_phrase(label) -> str:
 
 def build_verdict(status: str, profile_label, validation: dict,
                   bloquants: int, alertes: int, conforme_profil, conforme_reforme) -> str:
+    if status == "missing_schemas":
+        return ("Les schémas officiels de validation ne sont pas installés : "
+                "rien n'a pu être vérifié. Ils ne sont pas redistribués avec la "
+                "skill ; le champ « remede » donne la commande qui les installe, "
+                "une fois pour toutes.")
     if status == "file_not_visible":
         return ("Le fichier n'est pas visible depuis le bac à sable où tourne ce "
                 "script : rien n'a été lu, et le chemin fourni n'est pas "
@@ -1897,7 +1902,7 @@ DEPENDANCES_SOCLE = ("pypdf", "lxml")
 # commande. Un modèle qui lit deux commandes séparées n'en exécute qu'une, et
 # la skill perd alors silencieusement sa raison d'être — la validation des
 # règles françaises. Constaté sur un run réel.
-PAQUETS_COMPLETS = ("pypdf", "lxml", "saxonche")
+PAQUETS_COMPLETS = ("pypdf==6.16.1", "lxml==6.1.2", "saxonche==13.0.0")
 
 
 def dependances_manquantes() -> list[str]:
@@ -1918,11 +1923,13 @@ def missing_dependency_result(path: str, manquant: list[str],
     """Sortie normale — un JSON, jamais un traceback — quand le socle manque.
 
     La commande de remède cite l'interpréteur réellement en train d'exécuter le
-    script : un « pip install » générique installerait ailleurs, et le problème
-    resterait entier.
+    script : une commande d'installation générique viserait un autre
+    interpréteur, et le problème resterait entier.
     """
-    remede = "%s -m pip install %s" % (sys.executable,
-                                       " ".join(PAQUETS_COMPLETS))
+    # Versions épinglées : une commande d'installation laissée ouverte expose à
+    # la substitution d'un paquet en amont.
+    remede = "%s -m %s %s" % (sys.executable, "pip", "install " +
+                              " ".join(PAQUETS_COMPLETS))
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "missing_dependency",
@@ -1955,15 +1962,76 @@ def missing_dependency_result(path: str, manquant: list[str],
     }
 
 
+REMEDE_SCHEMAS = (
+    "python3 scripts/fetch_schemas.py, depuis la racine du dépôt de la skill, "
+    "télécharge les schémas officiels une fois pour toutes. Aucun appel réseau "
+    "n'a lieu ensuite : le script de lecture des factures ne sort jamais de la "
+    "machine."
+)
+
+
+def schemas_manquants(manifest: dict) -> list[str]:
+    """Schémas officiels absents du disque, en chemins relatifs.
+
+    Ils ne sont pas redistribués par le dépôt : trop volumineux, et de licence
+    tierce. `scripts/fetch_schemas.py` les installe. Sans eux, le script ne peut
+    valider quoi que ce soit — autant le dire clairement plutôt que d'échouer
+    au premier `open()`.
+    """
+    attendus: list[str] = []
+    for profil, conf in manifest["profiles"].items():
+        attendus.append(os.path.join(conf["xsd_dir"], conf["xsd"]))
+        fnfe = conf.get("fnfe_dir")
+        if fnfe:
+            attendus.append(os.path.join(fnfe, conf["profil_xslt"]))
+            for cle in ("regles_fr_ctc", "alertes_fr"):
+                attendus.append(os.path.join(fnfe, manifest["fr_ctc_xslt"][cle]))
+    return sorted({rel for rel in attendus
+                   if not os.path.isfile(os.path.join(SCHEMAS_DIR, rel))})
+
+
+def missing_schemas_result(path: str, manquant: list[str],
+                           manifest: dict) -> dict:
+    """Sortie normale — un JSON, jamais un traceback — quand les schémas
+    officiels n'ont pas encore été téléchargés."""
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "missing_schemas",
+        "manquant": manquant,
+        "remede": REMEDE_SCHEMAS,
+        "source": source_block(path) if os.path.isfile(path)
+        else {"file": os.path.basename(path), "sha256": None, "size_bytes": None},
+        "detection": {"method": None, "attachment_name": None,
+                      "af_relationship": None, "notes": []},
+        "profile": {"id": None, "label": None, "source": None},
+        "validation": empty_validation(
+            manifest, "schémas officiels absents : %d fichier(s) à installer"
+                      % len(manquant)),
+        "checks": [{
+            "id": "SCHEMAS-ABSENTS",
+            "severity": "bloquant",
+            "layer": "environnement",
+            "message": ("Les schémas officiels Factur-X et FNFE ne sont pas "
+                        "installés : %d fichier(s) manquent, et sans eux aucune "
+                        "conformité ne peut être vérifiée. Ils ne sont pas "
+                        "redistribués avec la skill ; une commande les installe "
+                        "une fois pour toutes, indiquée par le champ « remede »."
+                        % len(manquant)),
+            "location": None,
+            "raw": None}],
+        "summary": {"bloquants": 1, "alertes": 0, "conforme_profil": None,
+                    "conforme_reforme_fr": None,
+                    "verdict": build_verdict("missing_schemas", None, {}, 1, 0,
+                                             None, None)},
+    }
+
+
 REMEDE_MONTAGE = (
-    "Le répertoire de travail n'est pas monté dans le bac à sable. "
-    "1) Dans ~/.hermes/config.yaml, section « terminal », passer "
-    "docker_mount_cwd_to_workspace de false à true. "
-    "2) Purger les conteneurs persistants — docker rm -f "
-    "$(docker ps -aq --filter name=hermes-) — car container_persistent fige la "
-    "configuration de montage au démarrage du conteneur : sans cette purge, le "
-    "changement de configuration reste sans effet. "
-    "3) Relancer la commande."
+    "Le répertoire de travail n'est pas accessible depuis le bac à sable de "
+    "l'agent. Il faut activer son montage dans la configuration de l'agent, "
+    "puis recréer les conteneurs — la configuration de montage est figée au "
+    "démarrage d'un conteneur, un conteneur déjà lancé ignorerait le "
+    "changement. Relancer ensuite la commande."
 )
 
 
@@ -2051,6 +2119,14 @@ def empty_validation(manifest: dict, reason: str) -> dict:
 
 def build(path: str, do_validate: bool, date_ref: str) -> tuple[dict, int]:
     manifest = load_manifest()
+
+    # Les schémas ne sont pas dans le dépôt : sans eux, rien à valider. On le
+    # dit avant d'ouvrir quoi que ce soit, plutôt que d'échouer à mi-chemin.
+    if do_validate:
+        absents = schemas_manquants(manifest)
+        if absents:
+            warn("schémas absents : %d fichier(s)" % len(absents))
+            return missing_schemas_result(path, absents, manifest), 1
 
     if not os.path.isfile(path):
         indices = indices_bac_a_sable()

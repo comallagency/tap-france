@@ -69,6 +69,9 @@ if [ "$MODE" = "install" ]; then
     mkdir -p "$(dirname "$dest")"
     rm -rf "$dest"
     cp -r "$SRC_ROOT/$skill" "$dest"
+    # Le bit exécutable n'a rien à faire sur de la documentation ou des
+    # schémas : le scanner de sécurité d'Hermes le signale, à juste titre.
+    find "$dest" -type f ! -name '*.sh' ! -name '*.py' -exec chmod 644 {} +
     echo "  installé : $skill"
   done
   echo

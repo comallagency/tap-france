@@ -5,7 +5,7 @@
 
 **Non nécessaire par défaut.** Les schémas sont vendorisés dans le dépôt, sur la
 base de la mention Apache 2.0 du document officiel du pack FNFE — voir
-`skills/finance/facturx-reception/schemas/NOTICE.md`, qui porte l'attribution et
+`skills/facturx-reception/schemas/NOTICE.md`, qui porte l'attribution et
 cite aussi la mention EUPL divergente de l'en-tête des fichiers sources.
 
 Ce script sert à qui préfère ne rien embarquer : distribution interne soumise à
@@ -28,7 +28,7 @@ import sys
 import zipfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEST_DEFAUT = os.path.join(REPO, "skills", "finance", "facturx-reception", "schemas")
+DEST_DEFAUT = os.path.join(REPO, "skills", "facturx-reception", "schemas")
 
 PACK_FNFE = {
     "nom": "2026_08_04_FNFE_SCHEMATRONS_FR_CTC_V1.4.0.03",

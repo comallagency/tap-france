@@ -66,7 +66,7 @@ Sortie : **un objet JSON sur stdout, rien d'autre**. Code `0` si le script a fai
 
 Une facture non conforme n'est pas une erreur. C'est un résultat, et c'est souvent le plus utile.
 
-Aucun réseau, aucune écriture disque, aucune clé d'API.
+Aucun appel réseau à l'exécution, aucune écriture disque, aucune clé d'API. Le seul téléchargement est celui des schémas, à l'installation.
 
 ## Lire le JSON
 
@@ -184,11 +184,14 @@ Si tu ne peux pas cocher les quatre, relis le JSON plutôt que de compléter au 
 
 ## Installation
 
-Une seule commande, et la skill est complète :
+Deux commandes, et la skill est complète :
 
 ```bash
-python3 -m pip install pypdf lxml saxonche
+python3 -m pip install pypdf==6.16.1 lxml==6.1.2 saxonche==13.0.0
+python3 scripts/fetch_schemas.py
 ```
+
+La seconde télécharge les schémas officiels, qui ne sont pas redistribués avec la skill. Tant qu'ils manquent, le script renvoie `status: missing_schemas` et la commande exacte — il n'échoue jamais en cours de route.
 
 C'est celle-là qu'il faut exécuter. **N'en installe pas la moitié** : sans `saxonche`, le script tourne encore, mais il ne vérifie plus les règles françaises de la réforme — c'est-à-dire ce pour quoi la skill existe. Ce mode dégradé est décrit plus bas ; ce n'est pas une option de même rang.
 

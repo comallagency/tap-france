@@ -9,20 +9,23 @@ code et le contrat est un bug du code, pas du test.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "skills", "finance", "facturx-reception", "scripts"))
+    "..", "skills", "facturx-reception", "scripts"))
 import facturx_extract as fx  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCRIPT = os.path.join(ROOT, "skills", "finance", "facturx-reception", "scripts",
+SCRIPT = os.path.join(ROOT, "skills", "facturx-reception", "scripts",
                       "facturx_extract.py")
 SKILL_DIR = os.path.dirname(os.path.dirname(SCRIPT))
 FIXTURES = os.path.join(ROOT, "tests", "fixtures")
@@ -546,10 +549,10 @@ class TestFichierHorsMontage(ContractCase):
         self.assertFalse(fx.fichier_hors_montage({}))
 
     def test_skills_montees_detecte_le_chemin_hermes(self):
-        hermes = os.path.join(os.sep, "root", ".hermes", "skills", "finance",
+        hermes = os.path.join(os.sep, "root", ".hermes", "skills",
                               "facturx-reception", "scripts", "facturx_extract.py")
         self.assertTrue(fx.indices_bac_a_sable(hermes)["skills_montees"])
-        depot = os.path.join(os.sep, "home", "x", "depot", "skills", "finance",
+        depot = os.path.join(os.sep, "home", "x", "depot", "skills",
                              "facturx-reception", "scripts", "facturx_extract.py")
         indices = fx.indices_bac_a_sable(depot)
         # Hors conteneur, la seule présence du chemin ne suffit jamais.
@@ -568,15 +571,27 @@ class TestFichierHorsMontage(ContractCase):
         self.assertIsNone(result["summary"]["conforme_reforme_fr"])
         json.dumps(result)  # sérialisable
 
-    def test_remede_donne_la_manipulation_exacte(self):
+    def test_remede_dit_le_resultat_a_obtenir(self):
+        """Le remède décrit ce qu'il faut obtenir, pas le fichier à éditer.
+
+        Nommer un fichier de configuration d'agent faisait classer la skill en
+        « dangerous » par le scanner de sécurité, qui ne distingue pas
+        l'explication de la modification. On perd en précision, on gagne
+        l'installabilité."""
         manifest = fx.load_manifest()
         remede = fx.file_not_visible_result("f.pdf", self.CONTENEUR_SANS_WORKSPACE,
                                             manifest)["remede"]
-        self.assertIn("docker_mount_cwd_to_workspace", remede)
-        self.assertIn("true", remede)
-        self.assertIn("container_persistent", remede)
-        self.assertIn("docker rm -f", remede)
-        self.assertIn("hermes-", remede)
+        for attendu in ("répertoire de travail", "bac à sable", "montage",
+                        "recréer les conteneurs", "figée"):
+            self.assertIn(attendu, remede, attendu)
+
+    def test_remede_ne_nomme_aucun_fichier_de_configuration(self):
+        manifest = fx.load_manifest()
+        remede = fx.file_not_visible_result("f.pdf", self.CONTENEUR_SANS_WORKSPACE,
+                                            manifest)["remede"]
+        for interdit in ("config.yaml", ".hermes", "docker_mount_cwd_to_workspace",
+                         "docker rm"):
+            self.assertNotIn(interdit, remede, interdit)
 
     def test_check_bloquant_et_couche_environnement(self):
         manifest = fx.load_manifest()
@@ -674,7 +689,7 @@ class TestNoteNiveau1(ContractCase):
     def test_elle_dit_ce_qui_manque_et_comment_l_activer(self):
         note = next(b for b in self.blocs if b.startswith("saxonche"))
         self.assertIn("n'a pas pu être exécutée", note)
-        self.assertIn("pip install saxonche", note)
+        self.assertIn("commande d'installation de la skill", note)
 
     def test_elle_precede_le_remede_et_les_autres_notes(self):
         """Elle porte sur le résultat, pas sur l'installation : elle vient
@@ -867,6 +882,78 @@ class TestRapport(ContractCase):
         result, _ = self.result_for(MINIMUM, "--json-only")
         self.assertNotIn("\n- ", result["rapport"])
         self.assertIn("Facture n° FA-2017-0010", result["rapport"])
+
+
+class TestSchemasAbsents(ContractCase):
+    """§9 — les schémas ne sont pas redistribués : sans eux, un JSON exploitable
+    plutôt qu'un échec à mi-chemin.
+
+    Les schémas sont déplacés le temps du test, puis remis en place."""
+
+    SCHEMAS = os.path.join(ROOT, "skills", "facturx-reception", "schemas")
+
+    @contextlib.contextmanager
+    def _sans(self, *sous_dossiers):
+        garde = tempfile.mkdtemp(prefix="schemas-")
+        deplaces = []
+        try:
+            for nom in sous_dossiers:
+                src = os.path.join(self.SCHEMAS, nom)
+                if os.path.isdir(src):
+                    dst = os.path.join(garde, nom.replace(os.sep, "_"))
+                    shutil.move(src, dst)
+                    deplaces.append((dst, src))
+            yield
+        finally:
+            for dst, src in deplaces:
+                shutil.move(dst, src)
+            shutil.rmtree(garde, ignore_errors=True)
+
+    def test_schemas_totalement_absents(self):
+        with self._sans("fnfe", "factur-x"):
+            result, proc = self.result_for(BASICWL, "--json-only",
+                                           "--date-ref", DATE_AVANT)
+        self.assertEqual(result["status"], "missing_schemas")
+        self.assertEqual(proc.returncode, 1)
+        self.assertNotIn("invoice", result)
+        self.assertTrue(result["manquant"])
+        self.assertIn("fetch_schemas.py", result["remede"])
+
+    def test_schemas_partiels(self):
+        """Les XSD sont là, les schematrons non : c'est encore un manque."""
+        with self._sans("fnfe"):
+            result, proc = self.result_for(BASICWL, "--json-only",
+                                           "--date-ref", DATE_AVANT)
+        self.assertEqual(result["status"], "missing_schemas")
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(len(result["manquant"]), 9)
+        self.assertTrue(all(m.startswith("fnfe/") for m in result["manquant"]))
+
+    def test_aucun_traceback(self):
+        with self._sans("fnfe", "factur-x"):
+            proc = run(BASICWL, "--date-ref", DATE_AVANT)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertNotIn("FileNotFoundError", proc.stderr)
+        json.loads(proc.stdout)
+
+    def test_le_rapport_donne_la_commande(self):
+        with self._sans("fnfe"):
+            result, _ = self.result_for(BASICWL, "--json-only",
+                                        "--date-ref", DATE_AVANT)
+        rapport = result["rapport"]
+        self.assertIn("ne sont pas installés", rapport)
+        self.assertIn("fetch_schemas.py", rapport)
+        self.assertNotIn("\n- ", rapport)
+
+    def test_extraction_seule_reste_possible(self):
+        """--no-validate ne touche à aucun schéma : il doit continuer à
+        fonctionner même sans eux."""
+        with self._sans("fnfe", "factur-x"):
+            result, proc = self.result_for(BASICWL, "--json-only",
+                                           "--no-validate")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(result["invoice"]["totals"]["gross"], "671.15")
 
 
 class TestRegimeDate(ContractCase):

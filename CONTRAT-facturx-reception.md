@@ -1,7 +1,7 @@
 # Contrat — `facturx-reception`
 
 Version 1.0 — 20/08/2026
-Dépôt : `comallagency/tap-france` · Skill : `skills/finance/facturx-reception/`
+Dépôt : `comallagency/tap-france` · Skill : `skills/facturx-reception/`
 
 Ce document est la **référence normative** de l'implémentation. Le script, les tests et le SKILL.md en découlent. Toute divergence entre le code et ce document est un bug du code.
 
@@ -35,7 +35,9 @@ python3 scripts/facturx_extract.py <chemin.pdf> [--no-validate] [--json-only]
 
 > Une facture non conforme est un **résultat**, pas une erreur. Confondre les deux casserait l'usage : le cas le plus utile de la skill est précisément de dire « cette facture n'est pas conforme ».
 
-**Contraintes absolues :** aucun appel réseau, aucune écriture disque, aucune variable d'environnement requise.
+**Contraintes absolues :** aucun appel réseau **à l'exécution**, aucune écriture disque, aucune variable d'environnement requise.
+
+Les schémas de validation ne sont pas redistribués par le dépôt — trop volumineux, et de licence tierce. `scripts/fetch_schemas.py` les installe en une étape explicite, lancée une fois à la main. Le script de lecture des factures, lui, ne sort jamais de la machine : voir §9, `missing_schemas`.
 
 ---
 
@@ -389,6 +391,7 @@ Dans le rapport, et **seulement** dans le rapport, les montants se lisent à la 
 | `invalid_xml` | XML présent mais non parsable | 0 |
 | `missing_dependency` | Socle Python absent — rien n'a été lu | 1 |
 | `file_not_visible` | Fichier hors du montage du bac à sable — le chemin n'est pas en cause | 1 |
+| `missing_schemas` | Schémas officiels pas encore installés — rien n'a été validé | 1 |
 
 En cas de `unstructured`, le champ `invoice` est **absent**, pas rempli de `null`. La skill ne prétend pas avoir lu ce qu'elle n'a pas lu. Il en va de même pour `invalid_xml` et `missing_dependency`.
 
@@ -409,6 +412,22 @@ Si `pypdf` ou `lxml` ne s'importent pas, le script ne remonte **jamais** d'`Impo
 Le `check` correspondant porte la sévérité `bloquant` et la couche `environnement`.
 
 > **`saxonche` n'entre pas dans ce cas.** Son absence est un mode de fonctionnement normal — `level: 1`, passes déclarées dans `not_applied`, message `info` — et jamais un `missing_dependency`. Confondre les deux transformerait une validation partielle en panne.
+
+### `missing_schemas`
+
+Les schémas officiels ne vivent pas dans le dépôt. Tant qu'ils n'ont pas été installés, le script ne peut valider quoi que ce soit — et il le dit **avant** d'ouvrir le PDF, plutôt que d'échouer au premier fichier manquant.
+
+```json
+{
+  "status": "missing_schemas",
+  "manquant": ["fnfe/BASICWL/BR-FR-Flux2-Schematron-CII.xslt", "…"],
+  "remede": "python3 scripts/fetch_schemas.py, depuis la racine du dépôt de la skill, …"
+}
+```
+
+`manquant` liste les chemins relatifs réellement absents, de sorte qu'une installation partielle se diagnostique aussi bien qu'une absence totale. Même forme que `missing_dependency` : jamais de trace d'appels, toujours la commande exacte.
+
+> **`--no-validate` continue de fonctionner sans schémas.** L'extraction ne dépend d'aucun d'eux ; refuser de la faire serait gratuit.
 
 ### `file_not_visible`
 
@@ -467,16 +486,10 @@ L'archivage légal fera l'objet d'une skill distincte — la seule du tap autori
 
 ---
 
-## 12. Licence de redistribution — tranché
+## 12. Licence — plus rien à redistribuer
 
-Le point était ouvert et bloquait la publication. Il est refermé.
+Les schémas officiels ne sont pas dans le dépôt. `scripts/fetch_schemas.py` les récupère à l'installation auprès de leurs éditeurs : les XSD chez Akretion (BSD-3-Clause), les validateurs de profil et les règles françaises dans le pack officiel FNFE-MPE.
 
-Page 8 de `2026_06_30_FNFE_SCHEMATRONS_FR_CTC_V1.4.0.pdf`, fourni dans le pack officiel :
+La question de leur redistribution ne se pose donc plus. Elle s'était posée : le document du pack FNFE énonce une mise à disposition sous Apache 2.0, l'en-tête de certains fichiers source mentionne l'EUPL. Les deux mentions restent citées dans `schemas/NOTICE.md`, parce qu'un utilisateur qui télécharge ces fichiers a le droit de savoir sous quelles conditions.
 
-> L'utilisation des schematrons d'application de la Norme XP Z12-012 est libre de droits, sur une base « TEL QUEL » (« AS IS »), sous réserve des limitations susmentionnées, et relève des dispositions de licence Apache 2.0.
-
-**La redistribution se fait sur cette base.** L'Apache 2.0 autorise l'inclusion dans un dépôt MIT à condition de conserver l'attribution : elle est portée par `schemas/NOTICE.md`.
-
-Une ambiguïté subsiste et n'est pas dissimulée : l'en-tête des fichiers `.sch` **sources** mentionne l'EUPL, licence à réciprocité. La formulation y paraît fautive — « version 1.4.0 » est le numéro du pack, pas celui de l'EUPL, dont les versions vont de 1.0 à 1.2 — et ce que nous redistribuons sont les `.xslt` compilés, qui ne portent aucune mention. Le document du pack, daté et circonstancié, l'emporte. Les deux mentions sont citées côte à côte dans `schemas/NOTICE.md`.
-
-`scripts/fetch_schemas.py` demeure, non comme repli juridique mais comme option d'installation pour qui préfère ne rien embarquer : il télécharge les schémas en une étape explicite, jamais à l'exécution — la promesse « zéro appel réseau au runtime » reste entière.
+Ce choix n'a pas été fait pour éviter la question, mais parce que le scanner de sécurité d'Hermes classe toute skill de plus d'1 Mo comme suspecte — les schémas en pesaient 5,5. Le télécharger explicitement à l'installation coûte une commande et vaut mieux qu'un avertissement à chaque installation.

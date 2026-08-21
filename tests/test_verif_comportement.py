@@ -62,7 +62,7 @@ class DetecteurCase(unittest.TestCase):
     def setUpClass(cls):
         proc = subprocess.run(
             [sys.executable,
-             os.path.join(ROOT, "skills", "finance", "facturx-reception",
+             os.path.join(ROOT, "skills", "facturx-reception",
                           "scripts", "facturx_extract.py"),
              BASICWL, "--json-only", "--date-ref", DATE_AVANT],
             capture_output=True, text=True, cwd=ROOT)

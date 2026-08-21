@@ -62,8 +62,11 @@ S'y ajoutent les **règles françaises de la réforme** et **la sévérité dat�
 
 ```bash
 hermes skills tap add comallagency/tap-france
-python3 -m pip install pypdf lxml saxonche
+python3 -m pip install pypdf==6.16.1 lxml==6.1.2 saxonche==13.0.0
+python3 scripts/fetch_schemas.py
 ```
+
+La troisième commande télécharge les schémas officiels Factur-X et FNFE. Ils ne sont **pas** redistribués par ce dépôt : ce sont des œuvres tierces, et ils pèsent 5,5 Mo. Le téléchargement est une étape d'installation explicite, faite une fois. Tant qu'elle n'a pas eu lieu, le script le dit et donne la commande, plutôt que d'échouer à mi-chemin.
 
 Sans `saxonche`, la skill fonctionne en mode dégradé : elle extrait et valide le format, mais **ne vérifie pas la conformité à la réforme française** — c'est-à-dire l'essentiel de ce pour quoi elle existe. Elle vous le dit explicitement plutôt que de vous laisser croire que tout va bien.
 
@@ -75,7 +78,7 @@ La skill est un dossier contenant un `SKILL.md` et ses scripts — un format de 
 
 Une skill qui lit vos factures est la plus sensible qui soit. Des audits publics ont trouvé des skills malveillantes dans certains registres. La méfiance est saine — voici de quoi la lever :
 
-- **Aucun accès réseau à l'exécution.** Zéro. Aucun import de `urllib`, `requests` ou `socket` dans le script. Vérifiez-le.
+- **Aucun accès réseau à l'exécution.** Zéro. Aucun import de `urllib`, `requests` ou `socket` dans le script qui lit vos factures. Vérifiez-le. Seul `scripts/fetch_schemas.py`, lancé une fois à l'installation, va chercher les schémas officiels — et vous pouvez lire ce qu'il télécharge avant de l'exécuter.
 - **Aucune écriture disque.** La skill lit, analyse, répond. Elle ne déplace, ne copie et n'archive rien.
 - **Aucune clé, aucun compte, aucun service tiers.** Vos factures ne quittent jamais votre machine.
 - **Un seul script**, plus des schémas officiels embarqués. Comptez une heure pour l'auditer de bout en bout — il fait 2 344 lignes, commentées.
@@ -119,18 +122,14 @@ Ce qu'il a déjà attrapé en conditions réelles : un préambule ajouté en ang
 
 ## Provenance et licences
 
-Le code de ce dépôt est sous licence MIT.
+Le code de ce dépôt est sous licence MIT — voir [`LICENSE`](LICENSE).
 
-Les schémas embarqués ne le sont pas :
+Les schémas de validation ne sont pas dans ce dépôt. `scripts/fetch_schemas.py` les récupère à l'installation auprès de leurs éditeurs :
 
 - **XSD des cinq profils Factur-X** — [`akretion/factur-x`](https://github.com/akretion/factur-x), BSD-3-Clause
-- **Validateurs de profil et règles françaises** — pack officiel FNFE-MPE FR CTC
+- **Validateurs de profil et règles françaises `BR-FR-*`** — pack officiel FNFE-MPE FR CTC
 
-Sur ce second point, une ambiguïté existe et nous la disons plutôt que de la taire. Le document officiel du pack FNFE énonce une mise à disposition libre sous **Apache 2.0** ; l'en-tête de certains fichiers source mentionne en revanche l'**EUPL**. Les deux mentions figurent, citations à l'appui, dans [`skills/finance/facturx-reception/schemas/NOTICE.md`](skills/finance/facturx-reception/schemas/NOTICE.md).
-
-**Nous redistribuons sur la base de la mention explicite du document officiel du pack**, qui est la déclaration de licence datée et circonstanciée. L'attribution FNFE-MPE est portée dans `NOTICE.md`, comme l'Apache 2.0 l'exige.
-
-Si vous préférez ne rien embarquer, `scripts/fetch_schemas.py` récupère à l'installation les schematrons XSLT auprès de la FNFE et les XSD auprès d'Akretion.
+Ne rien redistribuer simplifie la question de leur licence, et allège la skill de 5,5 Mo. Les sources, leurs conditions et une ambiguïté relevée dans le pack FNFE — son document annonce l'Apache 2.0, l'en-tête de certains fichiers mentionne l'EUPL — restent documentées, citations à l'appui, dans [`skills/facturx-reception/schemas/NOTICE.md`](skills/facturx-reception/schemas/NOTICE.md).
 
 Nous préférons afficher un doute que le taire.
 
@@ -154,6 +153,6 @@ Ouvrez une issue — sans joindre la facture, un fichier de facture contient des
 
 ## Qui maintient ce dépôt
 
-[ComAll](https://comallagency.com), agence de développement, également éditrice de [Hermes Agent France](https://hermesagentfrance.com) — un agent IA géré, prêt à l'emploi, où ces skills sont préinstallées.
+[Comall Agency](https://comallagency.com), agence de développement, également éditrice de [Hermes Agent France](https://hermesagentfrance.com) — un agent IA géré, prêt à l'emploi, où ces skills sont préinstallées.
 
 Ce tap est et restera gratuit et open source, utilisable avec n'importe quel agent, hébergé où vous voulez.

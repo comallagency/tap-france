@@ -19,18 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This licence covers the code of this repository only.
-
-The validation schemas embedded under
-`skills/finance/facturx-reception/schemas/` are third-party works,
-redistributed under their own terms:
-
-  * Factur-X XSD (all five profiles) — akretion/factur-x, BSD-3-Clause
-  * FNFE-MPE FR CTC profile validators and French BR-FR rules — Apache-2.0,
-    as stated in the official pack document
-
-Attribution, citations and the licensing caveat are recorded in
-`skills/finance/facturx-reception/schemas/NOTICE.md`.

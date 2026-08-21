@@ -7,3 +7,9 @@ __pycache__/
 
 # Produit par pytest, si un jour on y passe.
 .pytest_cache/
+
+# Schémas officiels Factur-X et FNFE : téléchargés à l'installation par
+# scripts/fetch_schemas.py, jamais redistribués par ce dépôt.
+
+skills/facturx-reception/schemas/factur-x/
+skills/facturx-reception/schemas/fnfe/

@@ -1,7 +1,10 @@
-# Provenance et licence des schémas vendorisés
+# Provenance et licence des schémas
 
-Aucun de ces fichiers n'est de notre fait. Ils sont recopiés tels quels depuis
-leurs sources officielles, et cette page dit d'où et sous quelle licence.
+> Ces fichiers ne sont **pas** dans le dépôt. `scripts/fetch_schemas.py` les
+> télécharge à l'installation, auprès des sources ci-dessous. Cette page dit
+> d'où ils viennent et sous quelles conditions — c'est ce que vous installez.
+
+Aucun de ces fichiers n'est de notre fait.
 
 Deux sources, deux licences, toutes deux redistribuables dans un dépôt MIT sans
 réserve : **BSD-3-Clause** pour la totalité des XSD, **Apache 2.0** pour la
