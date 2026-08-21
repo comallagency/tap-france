@@ -229,13 +229,25 @@ class TestRunInexploitable(DetecteurCase):
 class TestTranscriptsAnonymes(DetecteurCase):
     """Les transcripts versionnés ne doivent pas exposer d'arborescence."""
 
+    # Motifs génériques : nommer le compte à protéger reviendrait à le publier.
+    # « agent » est le nom neutre retenu pour les transcripts anonymisés.
+    PERSONNEL = [
+        ("répertoire personnel", r"/home/(?!agent\b)[a-z0-9._-]+"),
+        ("lecteur Windows monté", r"/mnt/[a-z]/"),
+        ("adresse personnelle", r"[\w.+-]+@(?!fnfe-mpe\.org)[\w.-]+\.[a-z]{2,}"),
+        ("clé d'API", r"\bsk-[A-Za-z0-9]{8,}"),
+    ]
+
     def test_aucun_chemin_personnel(self):
         import glob
+        import re as _re
         for chemin in glob.glob(os.path.join(TRANSCRIPTS, "*.txt")):
             contenu = open(chemin, encoding="utf-8", errors="replace").read()
-            for interdit in ("/home/comall", "/mnt/c", "@gmail"):
-                self.assertNotIn(interdit, contenu,
-                                 "%s : %s" % (os.path.basename(chemin), interdit))
+            for quoi, motif in self.PERSONNEL:
+                trouve = _re.findall(motif, contenu)
+                self.assertEqual(trouve, [], "%s — %s : %s"
+                                 % (os.path.basename(chemin), quoi,
+                                    sorted(set(trouve))[:3]))
 
     def test_ils_restent_lisibles_par_le_detecteur(self):
         """L'anonymisation ne doit pas casser le pelage du cadre hermes."""

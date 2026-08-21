@@ -4,3 +4,6 @@
 # Produit à l'exécution.
 __pycache__/
 *.pyc
+
+# Produit par pytest, si un jour on y passe.
+.pytest_cache/
